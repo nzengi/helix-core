@@ -18,7 +18,7 @@ pub struct Logger {
     metrics: Arc<Metrics>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Metrics {
     pub block_height: metrics::Counter,
     pub transaction_count: metrics::Counter,
@@ -58,12 +58,12 @@ impl Logger {
 
         // Metrics yapılandırması
         let metrics = Metrics {
-            block_height: counter!("block_height"),
-            transaction_count: counter!("transaction_count"),
-            peer_count: gauge!("peer_count"),
-            block_time: histogram!("block_time"),
-            shard_load: gauge!("shard_load"),
-            network_latency: histogram!("network_latency"),
+            block_height: metrics::counter!("block_height"),
+            transaction_count: metrics::counter!("transaction_count"),
+            peer_count: metrics::gauge!("peer_count"),
+            block_time: metrics::histogram!("block_time"),
+            shard_load: metrics::gauge!("shard_load"),
+            network_latency: metrics::histogram!("network_latency"),
         };
 
         // Prometheus exporter'ı başlat

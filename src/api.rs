@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 use axum::{
     routing::{get, post},
@@ -170,12 +169,8 @@ async fn get_account(
     Path(address): Path<String>,
 ) -> impl IntoResponse {
     match state.node.chain_state.get_account(&address).await {
-        Ok(Some(account)) => Json(ApiResponse::success(account)),
-        Ok(None) => Json(ApiResponse::<Account>::error("Account not found".to_string())),
-        Err(e) => {
-            tracing::error!("Failed to get account {}: {}", address, e);
-            Json(ApiResponse::<Account>::error(e.to_string()))
-        }
+        Some(account) => Json(ApiResponse::success(account)),
+        None => Json(ApiResponse::<Account>::error("Account not found")),
     }
 }
 

@@ -31,7 +31,7 @@ pub mod thermal;
 pub mod token;
 pub mod wallet;
 
-pub use crate::consensus::{ConsensusManager, Block, Transaction as ConsensusTransaction};
+pub use crate::consensus::{ConsensusState, Block, Transaction as ConsensusTransaction};
 pub use crate::crypto::CryptoManager;
 pub use crate::state::{ChainState, Account};
 pub use crate::network_manager::NetworkManager;
@@ -41,7 +41,7 @@ pub use crate::config::Config;
 pub struct HelixNode {
     pub config: Config,
     pub chain_state: Arc<ChainState>,
-    pub consensus: Arc<ConsensusManager>,
+    pub consensus: Arc<ConsensusState>,
     pub crypto: Arc<CryptoManager>,
     pub network: Arc<NetworkManager>,
     pub is_running: Arc<Mutex<bool>>,
@@ -50,12 +50,12 @@ pub struct HelixNode {
 impl HelixNode {
     pub async fn new(config: Config) -> Result<Self> {
         let crypto = Arc::new(CryptoManager::new());
-        let chain_state = Arc::new(ChainState::new().await?);
-        let consensus = Arc::new(ConsensusManager::new(
+        let chain_state = Arc::new(ChainState::new());
+        let consensus = Arc::new(ConsensusState::new(
             Arc::clone(&chain_state),
             Arc::clone(&crypto),
-        ).await?);
-        let network = Arc::new(NetworkManager::new().await?);
+        ));
+        let network = Arc::new(NetworkManager::new(config.clone()).await?);
 
         Ok(Self {
             config,
@@ -95,13 +95,17 @@ impl HelixNode {
 
     pub async fn submit_transaction(&self, transaction: ConsensusTransaction) -> Result<String> {
         if !self.chain_state.validate_transaction(&crate::state::Transaction {
-            id: transaction.id.clone(),
+            id: transaction.hash.clone(),
+            hash: transaction.hash.clone(),
             from: transaction.from.clone(),
             to: transaction.to.clone(),
+            value: transaction.amount,
             amount: transaction.amount,
-            fee: transaction.fee,
+            fee: transaction.gas_price * transaction.gas_limit,
+            gas_limit: transaction.gas_limit,
+            gas_price: transaction.gas_price,
             data: transaction.data.clone(),
-            timestamp: transaction.timestamp,
+            timestamp: transaction.timestamp.timestamp() as u64,
             signature: transaction.signature.clone(),
             nonce: transaction.nonce,
         }).await? {
@@ -109,32 +113,36 @@ impl HelixNode {
         }
 
         self.chain_state.add_pending_transaction(crate::state::Transaction {
-            id: transaction.id.clone(),
+            id: transaction.hash.clone(),
+            hash: transaction.hash.clone(),
             from: transaction.from.clone(),
             to: transaction.to.clone(),
+            value: transaction.amount,
             amount: transaction.amount,
-            fee: transaction.fee,
+            fee: transaction.gas_price * transaction.gas_limit,
+            gas_limit: transaction.gas_limit,
+            gas_price: transaction.gas_price,
             data: transaction.data.clone(),
-            timestamp: transaction.timestamp,
+            timestamp: transaction.timestamp.timestamp() as u64,
             signature: transaction.signature.clone(),
             nonce: transaction.nonce,
         }).await?;
 
-        Ok(transaction.id)
+        Ok(transaction.hash)
     }
 
     pub async fn mine_block(&self) -> Result<Block> {
         // Simplified block mining
         let block = Block {
             height: 0,
-            timestamp: Utc::now().timestamp() as u64,
+            timestamp: Utc::now(),
             previous_hash: String::new(),
             transactions: Vec::new(),
             merkle_root: String::new(),
             hash: String::new(),
-            nonce: 0,
-            difficulty: 1,
             validator: String::new(),
+            signature: String::new(),
+            torque: 0.0,
         };
 
         Ok(block)

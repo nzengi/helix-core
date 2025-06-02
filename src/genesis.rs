@@ -20,7 +20,7 @@ pub struct GenesisBlock {
     pub initial_supply: f64,
     pub initial_validator: String,
     pub chain_id: String,
-    pub accounts: HashMap<String, Account>,
+    pub accounts: HashMap<String, StateAccount>,
 }
 
 impl GenesisBlock {
@@ -51,7 +51,7 @@ impl GenesisBlock {
 
 #[derive(Clone)]
 pub struct GenesisState {
-    pub accounts: HashMap<String, Account>,
+    pub accounts: HashMap<String, StateAccount>,
     pub validators: HashMap<String, f64>,
 }
 
@@ -59,11 +59,11 @@ impl GenesisState {
     pub fn new(genesis: &GenesisBlock) -> Self {
         let mut accounts = HashMap::new();
         let mut validators = HashMap::new();
-        
+
         // İlk validator'a tüm başlangıç bakiyesini ver
         accounts.insert(
             genesis.initial_validator.clone(),
-            Account {
+            StateAccount {
                 address: genesis.initial_validator.clone(),
                 nonce: 0,
                 shard_id: 0,
@@ -74,11 +74,11 @@ impl GenesisState {
             }
         );
         validators.insert(genesis.initial_validator.clone(), genesis.initial_supply);
-        
+
         // Create initial accounts with balances
         accounts.insert(
             "0x7a3baefdbfad2171fbfdb2a9553e206d73e63f22869e".to_string(),
-            Account {
+            StateAccount {
                 address: "0x7a3baefdbfad2171fbfdb2a9553e206d73e63f22869e".to_string(),
                 nonce: 0,
                 shard_id: 0,
@@ -88,10 +88,10 @@ impl GenesisState {
                 efficiency: 1.0,
             },
         );
-        
+
         accounts.insert(
             "0x8b4cdefdbfad2171fbfdb2a9553e206d73e63f22869f".to_string(),
-            Account {
+            StateAccount {
                 address: "0x8b4cdefdbfad2171fbfdb2a9553e206d73e63f22869f".to_string(),
                 nonce: 0,
                 shard_id: 0,
@@ -101,10 +101,20 @@ impl GenesisState {
                 efficiency: 1.0,
             },
         );
-        
+
         Self {
             accounts,
             validators,
         }
     }
-} 
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct StateAccount {
+    pub address: String,
+    pub nonce: u64,
+    pub shard_id: u32,
+    pub storage_root: String,
+    pub staked_amount: f64,
+    pub beta_angle: f64,
+    pub efficiency: f64,
+}

@@ -1,4 +1,3 @@
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -70,7 +69,7 @@ impl HelixWallet {
 
     pub async fn create_account(&self) -> Result<Address> {
         let (secret_key, public_key, address) = self.address_generator.generate_keypair()?;
-        
+
         let account = WalletAccount {
             address: address.clone(),
             private_key: secret_key,
@@ -91,7 +90,7 @@ impl HelixWallet {
     pub async fn create_gear_account(&self, beta_angle: f64, stake: u64) -> Result<Address> {
         let (secret_key, public_key, base_address) = self.address_generator.generate_keypair()?;
         let (gear_params, gear_address) = self.address_generator.generate_gear_address(beta_angle, stake)?;
-        
+
         let account = WalletAccount {
             address: gear_address.clone(),
             private_key: secret_key,
@@ -158,14 +157,14 @@ impl HelixWallet {
     pub async fn sign_transaction(&self, tx: &Transaction) -> Result<String> {
         let accounts = self.accounts.lock().await;
         let from_address = Address::from(tx.from.clone());
-        
+
         let account = accounts.get(&from_address)
             .ok_or_else(|| anyhow::anyhow!("Account not found in wallet"))?;
 
         let tx_hash = self.calculate_transaction_hash(tx)?;
         let message = Message::from_slice(&tx_hash)?;
         let signature = self.secp.sign_ecdsa(&message, &account.private_key);
-        
+
         Ok(hex::encode(signature.serialize_compact()))
     }
 
@@ -243,7 +242,7 @@ impl HelixWallet {
     pub async fn backup_wallet(&self) -> Result<String> {
         let accounts = self.accounts.lock().await;
         let backup_data = serde_json::to_string(&*accounts)?;
-        
+
         // In a real implementation, this would be encrypted
         tracing::info!("Wallet backup created with {} accounts", accounts.len());
         Ok(backup_data)
@@ -253,7 +252,7 @@ impl HelixWallet {
         let restored_accounts: HashMap<Address, WalletAccount> = serde_json::from_str(backup_data)?;
         let mut accounts = self.accounts.lock().await;
         accounts.extend(restored_accounts);
-        
+
         tracing::info!("Wallet restored with {} accounts", accounts.len());
         Ok(())
     }
@@ -268,7 +267,7 @@ impl HelixWallet {
         hasher.update(&tx.nonce.to_le_bytes());
         hasher.update(&tx.data);
         hasher.update(&tx.timestamp.timestamp().to_le_bytes());
-        
+
         Ok(hasher.finalize().to_vec())
     }
 }
@@ -325,5 +324,99 @@ impl TransactionBuilder {
 impl Default for TransactionBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct KeyPair {
+    pub private_key: SecretKey,
+    pub public_key: PublicKey,
+    pub address: String,
+}
+
+impl serde::Serialize for KeyPair {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("KeyPair", 3)?;
+        state.serialize_field("private_key", &self.private_key.secret_bytes())?;
+        state.serialize_field("public_key", &self.public_key.serialize())?;
+        state.serialize_field("address", &self.address)?;
+        state.end()
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for KeyPair {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::{self, Deserializer, MapAccess, Visitor};
+        use std::fmt;
+
+        struct KeyPairVisitor;
+
+        impl<'de> Visitor<'de> for KeyPairVisitor {
+            type Value = KeyPair;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct KeyPair")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<KeyPair, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut private_key_bytes: Option<[u8; 32]> = None;
+                let mut public_key_bytes: Option<[u8; 33]> = None;
+                let mut address: Option<String> = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        "private_key" => {
+                            if private_key_bytes.is_some() {
+                                return Err(de::Error::duplicate_field("private_key"));
+                            }
+                            private_key_bytes = Some(map.next_value()?);
+                        }
+                        "public_key" => {
+                            if public_key_bytes.is_some() {
+                                return Err(de::Error::duplicate_field("public_key"));
+                            }
+                            public_key_bytes = Some(map.next_value()?);
+                        }
+                        "address" => {
+                            if address.is_some() {
+                                return Err(de::Error::duplicate_field("address"));
+                            }
+                            address = Some(map.next_value()?);
+                        }
+                        _ => {
+                            let _: serde_json::Value = map.next_value()?;
+                        }
+                    }
+                }
+
+                let private_key_bytes = private_key_bytes.ok_or_else(|| de::Error::missing_field("private_key"))?;
+                let public_key_bytes = public_key_bytes.ok_or_else(|| de::Error::missing_field("public_key"))?;
+                let address = address.ok_or_else(|| de::Error::missing_field("address"))?;
+
+                let private_key = SecretKey::from_slice(&private_key_bytes)
+                    .map_err(|e| de::Error::custom(format!("Invalid private key: {}", e)))?;
+                let public_key = PublicKey::from_slice(&public_key_bytes)
+                    .map_err(|e| de::Error::custom(format!("Invalid public key: {}", e)))?;
+
+                Ok(KeyPair {
+                    private_key,
+                    public_key,
+                    address,
+                })
+            }
+        }
+
+        const FIELDS: &'static [&'static str] = &["private_key", "public_key", "address"];
+        deserializer.deserialize_struct("KeyPair", FIELDS, KeyPairVisitor)
     }
 }

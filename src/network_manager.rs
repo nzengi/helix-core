@@ -102,23 +102,6 @@ impl NetworkManager {
         Ok(())
     }
 
-    pub async fn connect_to_peer(&self, address: &str) -> Result<()> {
-        let peer_id = format!("peer_{}", uuid::Uuid::new_v4());
-        let peer = Peer {
-            id: peer_id.clone(),
-            address: address.to_string(),
-            port: self.config.network.listen_port,
-            connected: true,
-            last_seen: chrono::Utc::now(),
-        };
-
-        let mut peers = self.peers.write().await;
-        peers.insert(peer_id, peer);
-
-        tracing::info!("Connected to peer: {}", address);
-        Ok(())
-    }
-
     pub async fn broadcast_message(&self, message: NetworkMessage) -> Result<()> {
         let peers = self.peers.read().await;
 
@@ -182,12 +165,16 @@ impl NetworkManager {
     }
 
     pub async fn disconnect_from_peer(&self, peer_id: &str) -> Result<()> {
-        let mut peers = self.peers.write().await;
-        if let Some(peer) = peers.get_mut(peer_id) {
-            peer.connected = false;
-            tracing::info!("❌ Disconnected from peer: {}", peer_id);
-        }
+        self.peers.lock().await.remove(peer_id);
         Ok(())
+    }
+
+    pub async fn get_peer_count(&self) -> usize {
+        self.peers.lock().await.len()
+    }
+
+    pub async fn get_connected_peers(&self) -> Vec<String> {
+        self.peers.lock().await.keys().cloned().collect()
     }
 
     pub async fn broadcast_transaction(&self, transaction: &Transaction) -> Result<()> {
@@ -306,6 +293,47 @@ impl NetworkManager {
         let peers = self.peers.read().await;
         peers.values().any(|p| p.connected)
     }
+
+    pub async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
+        match event {
+            NetworkEvent::PeerConnected(peer_id) => {
+                tracing::info!("Peer connected: {}", peer_id);
+            }
+            NetworkEvent::PeerDisconnected(peer_id) => {
+                tracing::info!("Peer disconnected: {}", peer_id);
+                self.disconnect_from_peer(&peer_id).await?;
+            }
+            NetworkEvent::MessageReceived(peer_id, message) => {
+                self.handle_message(&peer_id, &message).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn handle_message(&self, peer_id: &str, message: &NetworkMessage) -> Result<()> {
+        match message {
+            NetworkMessage::Ping => {
+                self.send_message_to_peer(peer_id, &NetworkMessage::Pong).await?;
+            }
+            NetworkMessage::Pong => {
+                // Handle pong message
+            }
+            NetworkMessage::Transaction(tx) => {
+                // Forward transaction to consensus
+            }
+            NetworkMessage::Block(block) => {
+                // Forward block to consensus
+            }
+            NetworkMessage::SyncRequest => {
+                // Handle sync request
+            }
+            NetworkMessage::SyncResponse { blocks: _ } => {
+                // Handle sync response
+            }
+            _ => {}
+        }
+        Ok(())
+    }
 }
 
 // Example message handler for blockchain events
@@ -397,4 +425,11 @@ mod tests {
         assert_eq!(peers[0].address, "127.0.0.1");
         assert_eq!(peers[0].port, 8081);
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum NetworkEvent {
+    PeerConnected(String),
+    PeerDisconnected(String),
+    MessageReceived(String, NetworkMessage),
 }

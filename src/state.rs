@@ -32,17 +32,19 @@ impl Account {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
+    pub id: String,
     pub hash: String,
     pub from: String,
     pub to: String,
     pub value: u64,
+    pub amount: u64,
+    pub fee: u64,
     pub gas_limit: u64,
     pub gas_price: u64,
     pub nonce: u64,
     pub data: Vec<u8>,
     pub signature: String,
     pub timestamp: u64,
-    pub amount: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -72,6 +74,7 @@ pub enum StateError {
     Other(String),
 }
 
+#[derive(Debug)]
 pub struct ChainState {
     accounts: Arc<RwLock<HashMap<String, Account>>>,
     transaction_pool: Arc<RwLock<Vec<Transaction>>>,
