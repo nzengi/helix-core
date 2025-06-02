@@ -1,34 +1,54 @@
+
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use axum::{
     routing::{get, post},
     Router,
     Json,
-    extract::{State, Path, WebSocketUpgrade},
+    extract::{State, Path, Query},
     response::IntoResponse,
     http::StatusCode,
 };
 use serde::{Serialize, Deserialize};
-use tower_http::cors::CorsLayer;
-use crate::{
-    consensus::{Block, Transaction},
-    state::State as ChainState,
-    network::NetworkState,
-    config::ApiConfig,
-};
+use anyhow::Result;
+
+use crate::HelixNode;
+use crate::consensus::{Block, Transaction, Validator};
+use crate::state::{Account, ChainStatus};
 
 #[derive(Clone)]
 pub struct ApiState {
-    pub chain_state: Arc<Mutex<ChainState>>,
-    pub network_state: Arc<Mutex<NetworkState>>,
-    pub config: Arc<ApiConfig>,
+    pub node: Arc<HelixNode>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
+pub struct TransactionRequest {
+    pub from: String,
+    pub to: String,
+    pub amount: u64,
+    pub gas_price: u64,
+    pub gas_limit: u64,
+    pub data: Option<Vec<u8>>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ValidatorRequest {
+    pub address: String,
+    pub stake: u64,
+    pub beta_angle: f64,
+    pub efficiency: f64,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct ApiResponse<T> {
     pub success: bool,
     pub data: Option<T>,
     pub error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct PaginationQuery {
+    pub page: Option<u64>,
+    pub limit: Option<u64>,
 }
 
 impl<T> ApiResponse<T> {
@@ -40,128 +60,122 @@ impl<T> ApiResponse<T> {
         }
     }
 
-    pub fn error(error: String) -> Self {
+    pub fn error(message: String) -> Self {
         Self {
             success: false,
             data: None,
-            error: Some(error),
+            error: Some(message),
         }
     }
 }
 
-pub struct ApiServer {
-    state: ApiState,
+pub fn create_router(state: ApiState) -> Router {
+    Router::new()
+        .route("/health", get(health_check))
+        .route("/api/v1/status", get(get_node_status))
+        .route("/api/v1/blocks", get(get_blocks))
+        .route("/api/v1/blocks/:hash", get(get_block))
+        .route("/api/v1/transactions", get(get_transactions))
+        .route("/api/v1/transactions/:hash", get(get_transaction))
+        .route("/api/v1/transactions", post(submit_transaction))
+        .route("/api/v1/accounts/:address", get(get_account))
+        .route("/api/v1/accounts/:address/balance", get(get_balance))
+        .route("/api/v1/validators", get(get_validators))
+        .route("/api/v1/validators", post(add_validator))
+        .route("/api/v1/metrics", get(get_metrics))
+        .with_state(state)
 }
 
-impl ApiServer {
-    pub fn new(chain_state: ChainState, network_state: NetworkState, config: ApiConfig) -> Self {
-        Self {
-            state: ApiState {
-                chain_state: Arc::new(Mutex::new(chain_state)),
-                network_state: Arc::new(Mutex::new(network_state)),
-                config: Arc::new(config),
-            },
+async fn health_check() -> impl IntoResponse {
+    Json(ApiResponse::success("HelixChain node is healthy"))
+}
+
+async fn get_node_status(State(state): State<ApiState>) -> impl IntoResponse {
+    match state.node.chain_state.get_status().await {
+        Ok(status) => Json(ApiResponse::success(status)),
+        Err(e) => {
+            tracing::error!("Failed to get node status: {}", e);
+            Json(ApiResponse::<ChainStatus>::error(e.to_string()))
         }
     }
-
-    pub async fn start(&self) -> Result<(), String> {
-        let app = Router::new()
-            // Block endpoints
-            .route("/api/blocks/latest", get(get_latest_block))
-            .route("/api/blocks/:hash", get(get_block))
-            .route("/api/blocks", post(submit_block))
-            
-            // Transaction endpoints
-            .route("/api/transactions", post(submit_transaction))
-            .route("/api/transactions/:hash", get(get_transaction))
-            
-            // Account endpoints
-            .route("/api/accounts/:address", get(get_account))
-            .route("/api/accounts/:address/balance", get(get_balance))
-            
-            // Network endpoints
-            .route("/api/network/peers", get(get_peers))
-            .route("/api/network/status", get(get_network_status))
-            
-            // WebSocket endpoints
-            .route("/ws/blocks", get(ws_blocks))
-            .route("/ws/transactions", get(ws_transactions))
-            
-            // CORS ve rate limiting
-            .layer(CorsLayer::permissive())
-            .with_state(self.state.clone());
-
-        let addr = format!("{}:{}", self.state.config.host, self.state.config.port);
-        axum::Server::bind(&addr.parse().unwrap())
-            .serve(app.into_make_service())
-            .await
-            .map_err(|e| e.to_string())
-    }
 }
 
-// Block endpoints
-async fn get_latest_block(
+async fn get_blocks(
     State(state): State<ApiState>,
+    Query(pagination): Query<PaginationQuery>,
 ) -> impl IntoResponse {
-    let chain_state = state.chain_state.lock().await;
-    if let Some(block) = chain_state.last_block.lock().await.as_ref() {
-        Json(ApiResponse::success(block.clone()))
-    } else {
-        Json(ApiResponse::<Block>::error("No blocks found".to_string()))
-    }
+    // TODO: Implement pagination logic
+    Json(ApiResponse::success(Vec::<Block>::new()))
 }
 
 async fn get_block(
     State(state): State<ApiState>,
     Path(hash): Path<String>,
 ) -> impl IntoResponse {
-    let chain_state = state.chain_state.lock().await;
-    match chain_state.get_block(&hash).await {
+    match state.node.chain_state.get_block(&hash).await {
         Ok(Some(block)) => Json(ApiResponse::success(block)),
         Ok(None) => Json(ApiResponse::<Block>::error("Block not found".to_string())),
-        Err(e) => Json(ApiResponse::<Block>::error(e)),
+        Err(e) => {
+            tracing::error!("Failed to get block {}: {}", hash, e);
+            Json(ApiResponse::<Block>::error(e.to_string()))
+        }
     }
 }
 
-async fn submit_block(
+async fn get_transactions(
     State(state): State<ApiState>,
-    Json(block): Json<Block>,
+    Query(pagination): Query<PaginationQuery>,
 ) -> impl IntoResponse {
-    let chain_state = state.chain_state.lock().await;
-    match chain_state.save_block(block).await {
-        Ok(_) => Json(ApiResponse::success("Block saved".to_string())),
-        Err(e) => Json(ApiResponse::<String>::error(e)),
-    }
-}
-
-// Transaction endpoints
-async fn submit_transaction(
-    State(state): State<ApiState>,
-    Json(transaction): Json<Transaction>,
-) -> impl IntoResponse {
-    let chain_state = state.chain_state.lock().await;
-    // TODO: Implement transaction submission
-    Json(ApiResponse::success("Transaction submitted".to_string()))
+    // TODO: Implement pagination logic
+    Json(ApiResponse::success(Vec::<Transaction>::new()))
 }
 
 async fn get_transaction(
     State(state): State<ApiState>,
     Path(hash): Path<String>,
 ) -> impl IntoResponse {
-    // TODO: Implement transaction retrieval
-    Json(ApiResponse::<Transaction>::error("Not implemented".to_string()))
+    match state.node.chain_state.get_transaction(&hash).await {
+        Ok(Some(tx)) => Json(ApiResponse::success(tx)),
+        Ok(None) => Json(ApiResponse::<Transaction>::error("Transaction not found".to_string())),
+        Err(e) => {
+            tracing::error!("Failed to get transaction {}: {}", hash, e);
+            Json(ApiResponse::<Transaction>::error(e.to_string()))
+        }
+    }
 }
 
-// Account endpoints
+async fn submit_transaction(
+    State(state): State<ApiState>,
+    Json(tx_req): Json<TransactionRequest>,
+) -> impl IntoResponse {
+    let tx = Transaction {
+        hash: format!("tx_{}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)),
+        from: tx_req.from,
+        to: tx_req.to,
+        amount: tx_req.amount,
+        gas_price: tx_req.gas_price,
+        gas_limit: tx_req.gas_limit,
+        nonce: 0, // TODO: Get from account
+        data: tx_req.data.unwrap_or_default(),
+        signature: String::new(), // TODO: Validate signature
+        timestamp: chrono::Utc::now(),
+    };
+
+    // TODO: Add transaction to mempool and validate
+    Json(ApiResponse::success(tx))
+}
+
 async fn get_account(
     State(state): State<ApiState>,
     Path(address): Path<String>,
 ) -> impl IntoResponse {
-    let chain_state = state.chain_state.lock().await;
-    match chain_state.get_account(&address).await {
+    match state.node.chain_state.get_account(&address).await {
         Ok(Some(account)) => Json(ApiResponse::success(account)),
-        Ok(None) => Json(ApiResponse::<()>::error("Account not found".to_string())),
-        Err(e) => Json(ApiResponse::<()>::error(e)),
+        Ok(None) => Json(ApiResponse::<Account>::error("Account not found".to_string())),
+        Err(e) => {
+            tracing::error!("Failed to get account {}: {}", address, e);
+            Json(ApiResponse::<Account>::error(e.to_string()))
+        }
     }
 }
 
@@ -169,66 +183,50 @@ async fn get_balance(
     State(state): State<ApiState>,
     Path(address): Path<String>,
 ) -> impl IntoResponse {
-    let chain_state = state.chain_state.lock().await;
-    match chain_state.get_account(&address).await {
-        Ok(Some(account)) => Json(ApiResponse::success(account.balance)),
-        Ok(None) => Json(ApiResponse::<f64>::error("Account not found".to_string())),
-        Err(e) => Json(ApiResponse::<f64>::error(e)),
+    match state.node.chain_state.get_account_balance(&address).await {
+        Ok(balance) => Json(ApiResponse::success(balance)),
+        Err(e) => {
+            tracing::error!("Failed to get balance for {}: {}", address, e);
+            Json(ApiResponse::<u64>::error(e.to_string()))
+        }
     }
 }
 
-// Network endpoints
-async fn get_peers(
+async fn get_validators(State(state): State<ApiState>) -> impl IntoResponse {
+    // TODO: Get validators from consensus manager
+    Json(ApiResponse::success(Vec::<Validator>::new()))
+}
+
+async fn add_validator(
     State(state): State<ApiState>,
+    Json(validator_req): Json<ValidatorRequest>,
 ) -> impl IntoResponse {
-    let network_state = state.network_state.lock().await;
-    let peers = network_state.peers.lock().await;
-    Json(ApiResponse::success(peers.clone()))
-}
+    let validator = Validator {
+        address: validator_req.address,
+        stake: validator_req.stake,
+        beta_angle: validator_req.beta_angle,
+        efficiency: validator_req.efficiency,
+        last_active: chrono::Utc::now(),
+        is_active: true,
+    };
 
-async fn get_network_status(
-    State(state): State<ApiState>,
-) -> impl IntoResponse {
-    let network_state = state.network_state.lock().await;
-    let node_info = network_state.node_info.lock().await;
-    Json(ApiResponse::success(node_info.clone()))
-}
-
-// WebSocket endpoints
-async fn ws_blocks(
-    ws: WebSocketUpgrade,
-    State(state): State<ApiState>,
-) -> impl IntoResponse {
-    ws.on_upgrade(|socket| async move {
-        // TODO: Implement WebSocket handler for blocks
-    })
-}
-
-async fn ws_transactions(
-    ws: WebSocketUpgrade,
-    State(state): State<ApiState>,
-) -> impl IntoResponse {
-    ws.on_upgrade(|socket| async move {
-        // TODO: Implement WebSocket handler for transactions
-    })
-}
-
-// API hata yönetimi
-#[derive(Debug)]
-pub enum ApiError {
-    InvalidRequest(String),
-    NotFound(String),
-    InternalError(String),
-}
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> axum::response::Response {
-        let (status, error_message) = match self {
-            ApiError::InvalidRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            ApiError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-            ApiError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-        };
-
-        Json(ApiResponse::<()>::error(error_message)).into_response()
+    let consensus = state.node.consensus_manager.lock().await;
+    match consensus.add_validator(validator.clone()).await {
+        Ok(_) => Json(ApiResponse::success(validator)),
+        Err(e) => {
+            tracing::error!("Failed to add validator: {}", e);
+            Json(ApiResponse::<Validator>::error(e.to_string()))
+        }
     }
-} 
+}
+
+async fn get_metrics(State(state): State<ApiState>) -> impl IntoResponse {
+    // TODO: Get system metrics
+    let metrics = serde_json::json!({
+        "uptime": "1h 30m",
+        "memory_usage": "256MB",
+        "cpu_usage": "15%",
+        "network_peers": 5
+    });
+    Json(ApiResponse::success(metrics))
+}
