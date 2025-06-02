@@ -53,6 +53,31 @@ pub struct ConsensusState {
     pub current_round: u64,
 }
 
+impl ConsensusState {
+    pub fn new(
+        _chain_state: Arc<ChainState>,
+        _crypto: Arc<Mutex<CryptoManager>>,
+    ) -> Self {
+        Self {
+            current_height: 0,
+            last_block_hash: "genesis".to_string(),
+            pending_transactions: Vec::new(),
+            active_validators: HashMap::new(),
+            current_round: 0,
+        }
+    }
+
+    pub async fn start(&self) -> Result<()> {
+        // Start consensus process
+        Ok(())
+    }
+
+    pub async fn stop(&self) -> Result<()> {
+        // Stop consensus process
+        Ok(())
+    }
+}
+
 pub struct RotaryBFT {
     validators: Arc<RwLock<HashMap<String, Validator>>>,
     chain_state: Arc<ChainState>,

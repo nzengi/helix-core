@@ -51,9 +51,10 @@ impl HelixNode {
     pub async fn new(config: Config) -> Result<Self> {
         let crypto = Arc::new(CryptoManager::new());
         let chain_state = Arc::new(ChainState::new());
+        let crypto_mutex = Arc::new(Mutex::new(CryptoManager::new()));
         let consensus = Arc::new(ConsensusState::new(
             Arc::clone(&chain_state),
-            Arc::clone(&crypto),
+            Arc::clone(&crypto_mutex),
         ));
         let network = Arc::new(NetworkManager::new(config.clone()).await?);
 

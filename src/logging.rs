@@ -40,6 +40,19 @@ impl std::fmt::Debug for Metrics {
     }
 }
 
+impl Metrics {
+    pub fn new() -> Self {
+        Self {
+            block_height: counter!("block_height"),
+            transaction_count: counter!("transaction_count"),
+            peer_count: gauge!("peer_count"),
+            block_time: histogram!("block_time"),
+            shard_load: gauge!("shard_load"),
+            network_latency: histogram!("network_latency"),
+        }
+    }
+}
+
 impl Logger {
     pub fn new(config: LoggingConfig) -> Result<Self, String> {
         // Logging yapılandırması
