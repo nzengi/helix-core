@@ -1,440 +1,323 @@
+use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
+use anyhow::Result;
 use serde::{Serialize, Deserialize};
-use thiserror::Error;
-use std::collections::{HashMap, HashSet};
-use std::net::{IpAddr, SocketAddr};
-use std::time::{Duration, Instant};
-use tokio::time::sleep;
-use tokio::net::{TcpListener, TcpStream};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use sha3::{Keccak256, Digest};
-use rand::{rngs::OsRng, RngCore};
+use crate::config::Config;
+use crate::consensus::{Block, Transaction};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Peer {
-    pub address: SocketAddr,
-    pub node_id: String,
-    pub version: String,
-    pub capabilities: Vec<String>,
-    pub last_seen: u64,
-    pub latency: Duration,
-    pub score: i32,
-    pub is_validator: bool,
-    pub is_trusted: bool,
+    pub id: String,
+    pub address: String,
+    pub port: u16,
+    pub connected: bool,
+    pub last_seen: chrono::DateTime<chrono::Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NetworkStats {
-    pub total_peers: usize,
-    pub active_peers: usize,
-    pub total_connections: usize,
-    pub active_connections: usize,
-    pub bytes_sent: u64,
-    pub bytes_received: u64,
-    pub messages_sent: u64,
-    pub messages_received: u64,
-    pub average_latency: Duration,
-    pub uptime: Duration,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Connection {
-    pub peer: Peer,
-    pub stream: TcpStream,
-    pub last_activity: Instant,
-    pub bytes_sent: u64,
-    pub bytes_received: u64,
-    pub messages_sent: u64,
-    pub messages_received: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Message {
-    pub message_type: MessageType,
-    pub payload: Vec<u8>,
-    pub timestamp: u64,
-    pub sender: String,
-    pub recipient: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum MessageType {
-    Handshake,
+pub enum NetworkMessage {
+    Transaction(Transaction),
+    Block(Block),
+    PeerDiscovery { peers: Vec<Peer> },
+    SyncRequest { from_height: u64 },
+    SyncResponse { blocks: Vec<Block> },
     Ping,
     Pong,
-    GetPeers,
-    Peers,
-    NewBlock,
-    NewTransaction,
-    RequestBlock,
-    BlockData,
-    RequestTransaction,
-    TransactionData,
 }
 
 pub struct NetworkManager {
-    peers: Arc<Mutex<HashMap<String, Peer>>>,
-    connections: Arc<Mutex<HashMap<String, Connection>>>,
-    stats: Arc<Mutex<NetworkStats>>,
-    trusted_peers: Arc<Mutex<HashSet<String>>>,
-    banned_peers: Arc<Mutex<HashSet<String>>>,
-    max_peers: usize,
-    max_connections: usize,
-    handshake_timeout: Duration,
-    ping_interval: Duration,
-    ban_duration: Duration,
-    min_peer_score: i32,
+    config: Config,
+    peers: Arc<RwLock<HashMap<String, Peer>>>,
+    message_handlers: Arc<RwLock<Vec<Box<dyn MessageHandler + Send + Sync>>>>,
+    is_running: Arc<RwLock<bool>>,
+}
+
+#[async_trait::async_trait]
+pub trait MessageHandler {
+    async fn handle_message(&self, peer_id: &str, message: NetworkMessage) -> Result<()>;
 }
 
 impl NetworkManager {
-    pub fn new(
-        max_peers: usize,
-        max_connections: usize,
-        handshake_timeout: Duration,
-        ping_interval: Duration,
-        ban_duration: Duration,
-        min_peer_score: i32,
-    ) -> Self {
-        Self {
-            peers: Arc::new(Mutex::new(HashMap::new())),
-            connections: Arc::new(Mutex::new(HashMap::new())),
-            stats: Arc::new(Mutex::new(NetworkStats {
-                total_peers: 0,
-                active_peers: 0,
-                total_connections: 0,
-                active_connections: 0,
-                bytes_sent: 0,
-                bytes_received: 0,
-                messages_sent: 0,
-                messages_received: 0,
-                average_latency: Duration::from_millis(0),
-                uptime: Duration::from_secs(0),
-            })),
-            trusted_peers: Arc::new(Mutex::new(HashSet::new())),
-            banned_peers: Arc::new(Mutex::new(HashSet::new())),
-            max_peers,
-            max_connections,
-            handshake_timeout,
-            ping_interval,
-            ban_duration,
-            min_peer_score,
-        }
-    }
-
-    pub async fn start(&self, listen_addr: SocketAddr) -> Result<(), NetworkError> {
-        let listener = TcpListener::bind(listen_addr).await?;
-        println!("Network manager listening on {}", listen_addr);
-
-        loop {
-            let (stream, addr) = listener.accept().await?;
-            let peer_id = self.generate_peer_id(&addr)?;
-
-            // Ban kontrolü
-            if self.is_peer_banned(&peer_id).await {
-                stream.shutdown().await?;
-                continue;
-            }
-
-            // Bağlantı limiti kontrolü
-            if self.get_active_connections().await >= self.max_connections {
-                stream.shutdown().await?;
-                continue;
-            }
-
-            // Yeni bağlantıyı işle
-            let network_manager = self.clone();
-            tokio::spawn(async move {
-                if let Err(e) = network_manager.handle_connection(stream, addr, peer_id).await {
-                    eprintln!("Connection error: {}", e);
-                }
-            });
-        }
-    }
-
-    pub async fn connect_to_peer(&self, addr: SocketAddr) -> Result<(), NetworkError> {
-        let peer_id = self.generate_peer_id(&addr)?;
-
-        // Ban kontrolü
-        if self.is_peer_banned(&peer_id).await {
-            return Err(NetworkError::PeerBanned);
-        }
-
-        // Bağlantı limiti kontrolü
-        if self.get_active_connections().await >= self.max_connections {
-            return Err(NetworkError::MaxConnectionsReached);
-        }
-
-        // Bağlantıyı kur
-        let stream = TcpStream::connect(addr).await?;
-        self.handle_connection(stream, addr, peer_id).await?;
-
-        Ok(())
-    }
-
-    pub async fn broadcast_message(&self, message: Message) -> Result<(), NetworkError> {
-        let connections = self.connections.lock().await;
-        for connection in connections.values() {
-            self.send_message(&connection.stream, &message).await?;
-        }
-        Ok(())
-    }
-
-    pub async fn get_network_stats(&self) -> NetworkStats {
-        self.stats.lock().await.clone()
-    }
-
-    pub async fn get_peer_info(&self, peer_id: &str) -> Result<Peer, NetworkError> {
-        let peers = self.peers.lock().await;
-        let peer = peers.get(peer_id)
-            .ok_or(NetworkError::PeerNotFound)?
-            .clone();
-        Ok(peer)
-    }
-
-    async fn handle_connection(
-        &self,
-        mut stream: TcpStream,
-        addr: SocketAddr,
-        peer_id: String,
-    ) -> Result<(), NetworkError> {
-        // Handshake
-        let handshake = self.perform_handshake(&mut stream).await?;
-        let peer = Peer {
-            address: addr,
-            node_id: peer_id.clone(),
-            version: handshake.version,
-            capabilities: handshake.capabilities,
-            last_seen: chrono::Utc::now().timestamp() as u64,
-            latency: Duration::from_millis(0),
-            score: 100,
-            is_validator: handshake.is_validator,
-            is_trusted: self.is_peer_trusted(&peer_id).await,
-        };
-
-        // Peer'i kaydet
-        let mut peers = self.peers.lock().await;
-        peers.insert(peer_id.clone(), peer.clone());
-
-        // Bağlantıyı kaydet
-        let connection = Connection {
-            peer: peer.clone(),
-            stream: stream.try_clone().await?,
-            last_activity: Instant::now(),
-            bytes_sent: 0,
-            bytes_received: 0,
-            messages_sent: 0,
-            messages_received: 0,
-        };
-        let mut connections = self.connections.lock().await;
-        connections.insert(peer_id.clone(), connection);
-
-        // İstatistikleri güncelle
-        self.update_stats(true).await?;
-
-        // Ping-pong döngüsü
-        let network_manager = self.clone();
-        tokio::spawn(async move {
-            loop {
-                sleep(network_manager.ping_interval).await;
-                if let Err(e) = network_manager.send_ping(&mut stream).await {
-                    eprintln!("Ping error: {}", e);
-                    break;
-                }
-            }
-        });
-
-        // Mesaj dinleme döngüsü
-        let mut buffer = vec![0; 1024];
-        loop {
-            let n = stream.read(&mut buffer).await?;
-            if n == 0 {
-                break;
-            }
-
-            let message = self.decode_message(&buffer[..n])?;
-            self.handle_message(message).await?;
-        }
-
-        // Bağlantıyı temizle
-        self.cleanup_connection(&peer_id).await?;
-
-        Ok(())
-    }
-
-    async fn perform_handshake(&self, stream: &mut TcpStream) -> Result<Handshake, NetworkError> {
-        // TODO: Implement handshake protocol
-        Ok(Handshake {
-            version: "1.0.0".to_string(),
-            capabilities: vec!["block_sync".to_string(), "transaction_relay".to_string()],
-            is_validator: false,
+    pub async fn new(config: Config) -> Result<Self> {
+        Ok(Self {
+            config,
+            peers: Arc::new(RwLock::new(HashMap::new())),
+            message_handlers: Arc::new(RwLock::new(Vec::new())),
+            is_running: Arc::new(RwLock::new(false)),
         })
     }
 
-    async fn send_ping(&self, stream: &mut TcpStream) -> Result<(), NetworkError> {
-        let message = Message {
-            message_type: MessageType::Ping,
-            payload: vec![],
-            timestamp: chrono::Utc::now().timestamp() as u64,
-            sender: self.get_node_id()?,
-            recipient: "broadcast".to_string(),
-        };
-        self.send_message(stream, &message).await
+    pub async fn start(&self) -> Result<()> {
+        tracing::info!("🌐 Starting network manager...");
+
+        {
+            let mut running = self.is_running.write().await;
+            *running = true;
+        }
+
+        // Connect to bootstrap nodes
+        for bootstrap_node in &self.config.network.bootstrap_nodes {
+            self.connect_to_peer(bootstrap_node).await?;
+        }
+
+        // Start peer discovery
+        self.start_peer_discovery().await?;
+
+        tracing::info!("✅ Network manager started");
+        Ok(())
     }
 
-    async fn handle_message(&self, message: Message) -> Result<(), NetworkError> {
-        match message.message_type {
-            MessageType::Ping => {
-                // Pong yanıtı gönder
-                let pong = Message {
-                    message_type: MessageType::Pong,
-                    payload: message.payload,
-                    timestamp: chrono::Utc::now().timestamp() as u64,
-                    sender: self.get_node_id()?,
-                    recipient: message.sender,
-                };
-                self.broadcast_message(pong).await?;
+    pub async fn stop(&self) -> Result<()> {
+        tracing::info!("🛑 Stopping network manager...");
+
+        {
+            let mut running = self.is_running.write().await;
+            *running = false;
+        }
+
+        // Disconnect from all peers
+        let mut peers = self.peers.write().await;
+        for peer in peers.values_mut() {
+            peer.connected = false;
+        }
+
+        tracing::info!("✅ Network manager stopped");
+        Ok(())
+    }
+
+    pub async fn connect_to_peer(&self, address: &str) -> Result<()> {
+        let parts: Vec<&str> = address.split(':').collect();
+        if parts.len() != 2 {
+            anyhow::bail!("Invalid peer address format");
+        }
+
+        let host = parts[0];
+        let port: u16 = parts[1].parse()?;
+
+        let peer_id = format!("{}:{}", host, port);
+        let peer = Peer {
+            id: peer_id.clone(),
+            address: host.to_string(),
+            port,
+            connected: true,
+            last_seen: chrono::Utc::now(),
+        };
+
+        let mut peers = self.peers.write().await;
+        peers.insert(peer_id.clone(), peer);
+
+        tracing::info!("🔗 Connected to peer: {}", peer_id);
+        Ok(())
+    }
+
+    pub async fn disconnect_from_peer(&self, peer_id: &str) -> Result<()> {
+        let mut peers = self.peers.write().await;
+        if let Some(peer) = peers.get_mut(peer_id) {
+            peer.connected = false;
+            tracing::info!("❌ Disconnected from peer: {}", peer_id);
+        }
+        Ok(())
+    }
+
+    pub async fn broadcast_transaction(&self, transaction: &Transaction) -> Result<()> {
+        let message = NetworkMessage::Transaction(transaction.clone());
+        self.broadcast_message(message).await
+    }
+
+    pub async fn broadcast_block(&self, block: &Block) -> Result<()> {
+        let message = NetworkMessage::Block(block.clone());
+        self.broadcast_message(message).await
+    }
+
+    pub async fn broadcast_message(&self, message: NetworkMessage) -> Result<()> {
+        let peers = self.peers.read().await;
+        let connected_peers: Vec<_> = peers.values()
+            .filter(|p| p.connected)
+            .collect();
+
+        for peer in connected_peers {
+            self.send_message_to_peer(&peer.id, message.clone()).await?;
+        }
+
+        Ok(())
+    }
+
+    pub async fn send_message_to_peer(&self, peer_id: &str, message: NetworkMessage) -> Result<()> {
+        // In a real implementation, this would send the message over the network
+        // For now, we'll just simulate message handling
+        tracing::debug!("📤 Sending message to peer {}: {:?}", peer_id, message);
+
+        // Simulate message processing
+        self.handle_received_message(peer_id, message).await?;
+
+        Ok(())
+    }
+
+    pub async fn handle_received_message(&self, peer_id: &str, message: NetworkMessage) -> Result<()> {
+        tracing::debug!("📥 Received message from peer {}: {:?}", peer_id, message);
+
+        // Update peer last seen
+        {
+            let mut peers = self.peers.write().await;
+            if let Some(peer) = peers.get_mut(peer_id) {
+                peer.last_seen = chrono::Utc::now();
             }
-            MessageType::Pong => {
-                // Latency hesapla
-                let latency = chrono::Utc::now().timestamp() as u64 - message.timestamp;
-                self.update_peer_latency(&message.sender, Duration::from_millis(latency as u64)).await?;
+        }
+
+        // Process message based on type
+        match message.clone() {
+            NetworkMessage::PeerDiscovery { peers: new_peers } => {
+                self.handle_peer_discovery(new_peers).await?;
             }
-            MessageType::GetPeers => {
-                // Peer listesini gönder
-                let peers = self.get_peer_list().await?;
-                let response = Message {
-                    message_type: MessageType::Peers,
-                    payload: serde_json::to_vec(&peers)?,
-                    timestamp: chrono::Utc::now().timestamp() as u64,
-                    sender: self.get_node_id()?,
-                    recipient: message.sender,
-                };
-                self.broadcast_message(response).await?;
+            NetworkMessage::Ping => {
+                self.send_message_to_peer(peer_id, NetworkMessage::Pong).await?;
+            }
+            NetworkMessage::Pong => {
+                // Update peer connectivity
             }
             _ => {
-                // Diğer mesaj tipleri için işlem yap
+                // Forward to registered handlers
+                let handlers = self.message_handlers.read().await;
+                for handler in handlers.iter() {
+                    handler.handle_message(peer_id, message.clone()).await?;
+                }
             }
         }
+
         Ok(())
     }
 
-    async fn send_message(&self, stream: &mut TcpStream, message: &Message) -> Result<(), NetworkError> {
-        let data = serde_json::to_vec(message)?;
-        stream.write_all(&data).await?;
-        Ok(())
-    }
+    async fn handle_peer_discovery(&self, new_peers: Vec<Peer>) -> Result<()> {
+        let mut peers = self.peers.write().await;
 
-    async fn decode_message(&self, data: &[u8]) -> Result<Message, NetworkError> {
-        let message = serde_json::from_slice(data)?;
-        Ok(message)
-    }
-
-    async fn update_peer_latency(&self, peer_id: &str, latency: Duration) -> Result<(), NetworkError> {
-        let mut peers = self.peers.lock().await;
-        if let Some(peer) = peers.get_mut(peer_id) {
-            peer.latency = latency;
-            peer.last_seen = chrono::Utc::now().timestamp() as u64;
+        for new_peer in new_peers {
+            if !peers.contains_key(&new_peer.id) {
+                peers.insert(new_peer.id.clone(), new_peer);
+            }
         }
+
         Ok(())
     }
 
-    async fn update_stats(&self, is_connection: bool) -> Result<(), NetworkError> {
-        let mut stats = self.stats.lock().await;
-        if is_connection {
-            stats.active_connections += 1;
-            stats.total_connections += 1;
-        } else {
-            stats.active_connections -= 1;
+    async fn start_peer_discovery(&self) -> Result<()> {
+        let peers = self.peers.read().await;
+        let peer_list: Vec<Peer> = peers.values().cloned().collect();
+
+        if !peer_list.is_empty() {
+            let discovery_message = NetworkMessage::PeerDiscovery { peers: peer_list };
+            drop(peers); // Release the lock before broadcasting
+            self.broadcast_message(discovery_message).await?;
         }
+
         Ok(())
     }
 
-    async fn cleanup_connection(&self, peer_id: &str) -> Result<(), NetworkError> {
-        let mut connections = self.connections.lock().await;
-        connections.remove(peer_id);
-        self.update_stats(false).await?;
-        Ok(())
+    pub async fn get_connected_peers(&self) -> Result<Vec<Peer>> {
+        let peers = self.peers.read().await;
+        Ok(peers.values()
+            .filter(|p| p.connected)
+            .cloned()
+            .collect())
     }
 
-    async fn is_peer_banned(&self, peer_id: &str) -> bool {
-        let banned_peers = self.banned_peers.lock().await;
-        banned_peers.contains(peer_id)
+    pub async fn get_peer_count(&self) -> usize {
+        let peers = self.peers.read().await;
+        peers.values().filter(|p| p.connected).count()
     }
 
-    async fn is_peer_trusted(&self, peer_id: &str) -> bool {
-        let trusted_peers = self.trusted_peers.lock().await;
-        trusted_peers.contains(peer_id)
+    pub async fn add_message_handler(&self, handler: Box<dyn MessageHandler + Send + Sync>) {
+        let mut handlers = self.message_handlers.write().await;
+        handlers.push(handler);
     }
 
-    async fn get_active_connections(&self) -> usize {
-        let connections = self.connections.lock().await;
-        connections.len()
+    pub async fn sync_with_peers(&self, from_height: u64) -> Result<Vec<Block>> {
+        let sync_request = NetworkMessage::SyncRequest { from_height };
+        self.broadcast_message(sync_request).await?;
+
+        // In a real implementation, we would wait for responses and collect blocks
+        // For now, return empty vector
+        Ok(Vec::new())
     }
 
-    async fn get_peer_list(&self) -> Result<Vec<Peer>, NetworkError> {
-        let peers = self.peers.lock().await;
-        Ok(peers.values().cloned().collect())
-    }
-
-    fn get_node_id(&self) -> Result<String, NetworkError> {
-        // TODO: Implement node ID generation
-        Ok("node_1".to_string())
-    }
-
-    fn generate_peer_id(&self, addr: &SocketAddr) -> Result<String, NetworkError> {
-        let mut hasher = Keccak256::new();
-        hasher.update(addr.to_string().as_bytes());
-        let result = hasher.finalize();
-        Ok(format!("0x{}", hex::encode(&result[..8])))
+    pub async fn is_connected_to_network(&self) -> bool {
+        let peers = self.peers.read().await;
+        peers.values().any(|p| p.connected)
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct Handshake {
-    version: String,
-    capabilities: Vec<String>,
-    is_validator: bool,
+// Example message handler for blockchain events
+pub struct BlockchainMessageHandler {
+    pub chain_state: Arc<crate::state::ChainState>,
 }
 
-#[derive(Debug, Error)]
-pub enum NetworkError {
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
-    #[error("Serialization error: {0}")]
-    SerializationError(#[from] serde_json::Error),
-    #[error("Peer not found")]
-    PeerNotFound,
-    #[error("Peer banned")]
-    PeerBanned,
-    #[error("Max connections reached")]
-    MaxConnectionsReached,
-    #[error("Invalid message")]
-    InvalidMessage,
-    #[error("Handshake failed")]
-    HandshakeFailed,
-    #[error("Connection timeout")]
-    ConnectionTimeout,
-    #[error("Invalid peer")]
-    InvalidPeer,
-    #[error("Invalid address")]
-    InvalidAddress,
-    #[error("Invalid version")]
-    InvalidVersion,
-    #[error("Invalid capability")]
-    InvalidCapability,
-    #[error("Invalid node ID")]
-    InvalidNodeId,
-    #[error("Invalid handshake")]
-    InvalidHandshake,
-    #[error("Invalid message type")]
-    InvalidMessageType,
-    #[error("Invalid payload")]
-    InvalidPayload,
-    #[error("Invalid timestamp")]
-    InvalidTimestamp,
-    #[error("Invalid sender")]
-    InvalidSender,
-    #[error("Invalid recipient")]
-    InvalidRecipient,
-} 
+#[async_trait::async_trait]
+impl MessageHandler for BlockchainMessageHandler {
+    async fn handle_message(&self, peer_id: &str, message: NetworkMessage) -> Result<()> {
+        match message {
+            NetworkMessage::Transaction(tx) => {
+                if self.chain_state.validate_transaction(&tx).await? {
+                    self.chain_state.add_pending_transaction(tx).await?;
+                    tracing::info!("📝 Added transaction to pool from peer {}", peer_id);
+                }
+            }
+            NetworkMessage::Block(block) => {
+                // In a real implementation, we would validate and potentially add the block
+                tracing::info!("📦 Received block {} from peer {}", block.height, peer_id);
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::NetworkConfig;
+
+    #[tokio::test]
+    async fn test_network_manager_creation() {
+        let config = Config {
+            network: NetworkConfig {
+                listen_addr: "0.0.0.0".to_string(),
+                listen_port: 8080,
+                max_peers: 50,
+                bootstrap_nodes: Vec::new(),
+            },
+            consensus: Default::default(),
+            database: Default::default(),
+            api: Default::default(),
+            security: Default::default(),
+            wallet: Default::default(),
+        };
+
+        let network = NetworkManager::new(config).await.unwrap();
+        assert!(!network.is_connected_to_network().await);
+    }
+
+    #[tokio::test]
+    async fn test_peer_connection() {
+        let config = Config {
+            network: NetworkConfig {
+                listen_addr: "0.0.0.0".to_string(),
+                listen_port: 8080,
+                max_peers: 50,
+                bootstrap_nodes: Vec::new(),
+            },
+            consensus: Default::default(),
+            database: Default::default(),
+            api: Default::default(),
+            security: Default::default(),
+            wallet: Default::default(),
+        };
+
+        let network = NetworkManager::new(config).await.unwrap();
+        network.connect_to_peer("127.0.0.1:8081").await.unwrap();
+
+        let peers = network.get_connected_peers().await.unwrap();
+        assert_eq!(peers.len(), 1);
+        assert_eq!(peers[0].address, "127.0.0.1");
+        assert_eq!(peers[0].port, 8081);
+    }
+}

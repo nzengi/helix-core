@@ -1,10 +1,10 @@
+
 use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::sync::{Mutex, RwLock};
 use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
 use anyhow::Result;
-
 use crate::crypto::CryptoManager;
 use crate::state::ChainState;
 
@@ -28,6 +28,7 @@ pub struct Block {
     pub validator: String,
     pub signature: String,
     pub merkle_root: String,
+    pub torque: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,177 +54,260 @@ pub struct ConsensusState {
     pub current_round: u64,
 }
 
-pub struct ConsensusManager {
-    state: Arc<RwLock<ConsensusState>>,
+pub struct RotaryBFT {
+    validators: Arc<RwLock<HashMap<String, Validator>>>,
     chain_state: Arc<ChainState>,
-    crypto_manager: Arc<CryptoManager>,
-    validators: Arc<Mutex<HashMap<String, Validator>>>,
+    crypto: Arc<Mutex<CryptoManager>>,
+    min_torque_threshold: f64,
+    min_commit_torque: f64,
 }
 
-impl ConsensusManager {
-    pub fn new(chain_state: Arc<ChainState>, crypto_manager: Arc<CryptoManager>) -> Self {
-        let initial_state = ConsensusState {
-            current_height: 0,
-            last_block_hash: "genesis".to_string(),
-            pending_transactions: Vec::new(),
-            active_validators: HashMap::new(),
-            current_round: 0,
-        };
-
-        Self {
-            state: Arc::new(RwLock::new(initial_state)),
-            chain_state,
-            crypto_manager,
-            validators: Arc::new(Mutex::new(HashMap::new())),
+impl Validator {
+    pub fn calculate_torque(&self, network_load: f64) -> f64 {
+        if network_load <= 0.0 {
+            return 0.0;
         }
+        
+        let beta_rad = self.beta_angle.to_radians();
+        (self.stake as f64) * beta_rad.sin() / network_load * self.efficiency
     }
 
-    pub async fn start(&self) -> Result<()> {
-        tracing::info!("Starting consensus manager");
-        // Initialize genesis validators if needed
-        self.initialize_genesis_validators().await?;
-        Ok(())
+    pub fn can_vote(&self, network_load: f64) -> bool {
+        self.is_active && self.calculate_torque(network_load) >= 8.0
     }
 
-    pub async fn stop(&self) -> Result<()> {
-        tracing::info!("Stopping consensus manager");
-        Ok(())
+    pub fn validate_self_lock(&self) -> bool {
+        const FRICTION_ANGLE: f64 = 8.5; // degrees
+        const FRICTION_COEFF: f64 = 0.15;
+        
+        let beta_rad = self.beta_angle.to_radians();
+        let friction_rad = FRICTION_ANGLE.to_radians();
+        
+        // tan(φ) ≤ μ·sec(β)
+        friction_rad.tan() <= FRICTION_COEFF * beta_rad.cos().recip()
+    }
+}
+
+impl RotaryBFT {
+    pub fn new(chain_state: Arc<ChainState>) -> Self {
+        Self {
+            validators: Arc::new(RwLock::new(HashMap::new())),
+            chain_state,
+            crypto: Arc::new(Mutex::new(CryptoManager::new())),
+            min_torque_threshold: 8.0,  // 8 Nm
+            min_commit_torque: 24.0,    // 24 Nm
+        }
     }
 
     pub async fn add_validator(&self, validator: Validator) -> Result<()> {
-        // Validate minimum stake
-        if validator.stake < 1000 {
-            anyhow::bail!("Validator stake below minimum requirement");
+        if !validator.validate_self_lock() {
+            anyhow::bail!("Validator fails self-lock validation");
         }
-
-        // Validate beta angle is within acceptable range
-        if validator.beta_angle < 10.0 || validator.beta_angle > 80.0 {
-            anyhow::bail!("Invalid beta angle: must be between 10-80 degrees");
-        }
-
-        let mut validators = self.validators.lock().await;
-        validators.insert(validator.address.clone(), validator.clone());
-
-        let mut state = self.state.write().await;
-        state.active_validators.insert(validator.address.clone(), validator);
-
-        tracing::info!("Added validator: {}", validator.address);
+        
+        let mut validators = self.validators.write().await;
+        validators.insert(validator.address.clone(), validator);
         Ok(())
     }
 
     pub async fn propose_block(&self, transactions: Vec<Transaction>) -> Result<Block> {
-        let state = self.state.read().await;
-
-        // Select proposer based on stake-weighted selection
-        let proposer = self.select_block_proposer(&state.active_validators).await?;
-
+        let network_load = self.calculate_network_load().await;
+        let proposer = self.select_block_proposer(network_load).await?;
+        
         // Validate transactions
         let valid_transactions = self.validate_transactions(transactions).await?;
-
-        // Calculate merkle root
-        let merkle_root = self.calculate_merkle_root(&valid_transactions)?;
-
+        
         // Create block
+        let previous_block = self.get_latest_block().await?;
+        let height = previous_block.height + 1;
+        
         let block = Block {
-            hash: String::new(), // Will be calculated after creation
-            previous_hash: state.last_block_hash.clone(),
-            height: state.current_height + 1,
+            hash: String::new(), // Will be calculated
+            previous_hash: previous_block.hash,
+            height,
             timestamp: Utc::now(),
-            transactions: valid_transactions,
+            transactions: valid_transactions.clone(),
             validator: proposer.address.clone(),
-            signature: String::new(), // Will be signed after hash calculation
-            merkle_root,
+            signature: String::new(), // Will be calculated
+            merkle_root: self.calculate_merkle_root(&valid_transactions),
+            torque: proposer.calculate_torque(network_load),
         };
 
         // Calculate block hash
-        let block_hash = self.calculate_block_hash(&block)?;
-
-        // TODO: Sign block with proposer's private key
-        let mut signed_block = block;
-        signed_block.hash = block_hash;
-        // signed_block.signature = sign_block_hash(...);
-
-        Ok(signed_block)
+        let block_data = serde_json::to_string(&block)?;
+        let block_hash = hex::encode(crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes()));
+        
+        let mut final_block = block;
+        final_block.hash = block_hash;
+        
+        Ok(final_block)
     }
 
-    pub async fn validate_block(&self, block: &Block) -> Result<bool> {
+    pub async fn validate_and_commit_block(&self, block: Block) -> Result<bool> {
+        let network_load = self.calculate_network_load().await;
+        
+        // Calculate total torque from voting validators
+        let total_torque = self.calculate_voting_torque(network_load).await?;
+        
+        if total_torque < self.min_commit_torque {
+            return Ok(false);
+        }
+
         // Validate block structure
-        if block.transactions.is_empty() {
+        if !self.validate_block_structure(&block).await? {
             return Ok(false);
         }
 
-        // Validate previous hash
-        let state = self.state.read().await;
-        if block.previous_hash != state.last_block_hash {
-            return Ok(false);
-        }
+        // Execute transactions and update state
+        self.chain_state.execute_transactions(&block.transactions).await?;
+        
+        // Add block to chain
+        self.chain_state.add_block(block).await?;
+        
+        Ok(true)
+    }
 
-        // Validate height
-        if block.height != state.current_height + 1 {
-            return Ok(false);
-        }
+    async fn calculate_network_load(&self) -> f64 {
+        // Simple network load calculation based on pending transactions
+        let pending = self.chain_state.get_pending_transactions().await.unwrap_or_default();
+        let base_load = 10.0;
+        base_load + (pending.len() as f64 * 0.1)
+    }
 
-        // Validate timestamp (not too far in future)
-        let now = Utc::now();
-        if block.timestamp > now + chrono::Duration::minutes(5) {
-            return Ok(false);
+    async fn select_block_proposer(&self, network_load: f64) -> Result<Validator> {
+        let validators = self.validators.read().await;
+        
+        let mut best_validator = None;
+        let mut best_torque = 0.0;
+        
+        for validator in validators.values() {
+            if validator.can_vote(network_load) {
+                let torque = validator.calculate_torque(network_load);
+                if torque > best_torque {
+                    best_torque = torque;
+                    best_validator = Some(validator.clone());
+                }
+            }
         }
+        
+        best_validator.ok_or_else(|| anyhow::anyhow!("No eligible validators found"))
+    }
 
-        // Validate proposer is active validator
-        if !state.active_validators.contains_key(&block.validator) {
+    async fn calculate_voting_torque(&self, network_load: f64) -> Result<f64> {
+        let validators = self.validators.read().await;
+        let mut total_torque = 0.0;
+        
+        for validator in validators.values() {
+            if validator.can_vote(network_load) {
+                total_torque += validator.calculate_torque(network_load);
+            }
+        }
+        
+        Ok(total_torque)
+    }
+
+    async fn validate_transactions(&self, transactions: Vec<Transaction>) -> Result<Vec<Transaction>> {
+        let mut valid_transactions = Vec::new();
+        
+        for tx in transactions {
+            if self.chain_state.validate_transaction(&tx).await? {
+                valid_transactions.push(tx);
+            }
+        }
+        
+        Ok(valid_transactions)
+    }
+
+    async fn validate_block_structure(&self, block: &Block) -> Result<bool> {
+        // Validate block hash
+        let mut temp_block = block.clone();
+        temp_block.hash = String::new();
+        temp_block.signature = String::new();
+        
+        let block_data = serde_json::to_string(&temp_block)?;
+        let calculated_hash = hex::encode(crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes()));
+        
+        if calculated_hash != block.hash {
             return Ok(false);
         }
 
         // Validate merkle root
-        let calculated_merkle = self.calculate_merkle_root(&block.transactions)?;
-        if block.merkle_root != calculated_merkle {
+        let calculated_merkle = self.calculate_merkle_root(&block.transactions);
+        if calculated_merkle != block.merkle_root {
             return Ok(false);
         }
 
-        // Validate transactions
-        for tx in &block.transactions {
-            if !self.validate_transaction(tx).await? {
+        // Validate proposer torque
+        let validators = self.validators.read().await;
+        if let Some(validator) = validators.get(&block.validator) {
+            let network_load = self.calculate_network_load().await;
+            let required_torque = validator.calculate_torque(network_load);
+            if block.torque < required_torque || required_torque < self.min_torque_threshold {
                 return Ok(false);
             }
+        } else {
+            return Ok(false);
         }
-
-        // TODO: Validate block signature
 
         Ok(true)
     }
 
-    pub async fn commit_block(&self, block: Block) -> Result<()> {
-        // Final validation
-        if !self.validate_block(&block).await? {
-            anyhow::bail!("Invalid block cannot be committed");
+    fn calculate_merkle_root(&self, transactions: &[Transaction]) -> String {
+        if transactions.is_empty() {
+            return "empty".to_string();
         }
-
-        // Update chain state
-        self.chain_state.add_block(block.clone()).await?;
-
-        // Update consensus state
-        let mut state = self.state.write().await;
-        state.current_height = block.height;
-        state.last_block_hash = block.hash;
-        state.current_round += 1;
-
-        // Remove committed transactions from pending
-        let committed_hashes: std::collections::HashSet<_> = 
-            block.transactions.iter().map(|tx| &tx.hash).collect();
-        state.pending_transactions.retain(|tx| !committed_hashes.contains(&tx.hash));
-
-        tracing::info!("Committed block {} at height {}", block.hash, block.height);
-        Ok(())
+        
+        let tx_hashes: Vec<String> = transactions.iter()
+            .map(|tx| tx.hash.clone())
+            .collect();
+        
+        let merkle_tree = crate::crypto::MerkleTree::new(tx_hashes);
+        merkle_tree.root
     }
 
-    async fn initialize_genesis_validators(&self) -> Result<()> {
-        // Add genesis validators with default parameters
+    async fn get_latest_block(&self) -> Result<Block> {
+        let status = self.chain_state.get_status().await?;
+        
+        if let Some(block) = self.chain_state.get_block(&status.best_block_hash).await? {
+            Ok(block)
+        } else {
+            // Return genesis block
+            Ok(Block {
+                hash: "genesis".to_string(),
+                previous_hash: "0".to_string(),
+                height: 0,
+                timestamp: Utc::now(),
+                transactions: Vec::new(),
+                validator: "genesis".to_string(),
+                signature: "genesis".to_string(),
+                merkle_root: "genesis".to_string(),
+                torque: 0.0,
+            })
+        }
+    }
+
+    pub async fn initialize_genesis_validators(&self) -> Result<()> {
         let genesis_validators = vec![
             Validator {
                 address: "genesis_validator_1".to_string(),
                 stake: 10000,
                 beta_angle: 40.0,
                 efficiency: 0.92,
+                last_active: Utc::now(),
+                is_active: true,
+            },
+            Validator {
+                address: "genesis_validator_2".to_string(),
+                stake: 8000,
+                beta_angle: 35.0,
+                efficiency: 0.88,
+                last_active: Utc::now(),
+                is_active: true,
+            },
+            Validator {
+                address: "genesis_validator_3".to_string(),
+                stake: 12000,
+                beta_angle: 45.0,
+                efficiency: 0.95,
                 last_active: Utc::now(),
                 is_active: true,
             },
@@ -236,90 +320,77 @@ impl ConsensusManager {
         Ok(())
     }
 
-    async fn select_block_proposer(&self, validators: &HashMap<String, Validator>) -> Result<&Validator> {
-        if validators.is_empty() {
-            anyhow::bail!("No active validators available");
-        }
+    pub async fn get_validators(&self) -> Result<Vec<Validator>> {
+        let validators = self.validators.read().await;
+        Ok(validators.values().cloned().collect())
+    }
+}
 
-        // Simple stake-weighted random selection
-        // TODO: Implement proper weighted selection algorithm
-        let validator = validators.values().next().unwrap();
-        Ok(validator)
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_validator_torque_calculation() {
+        let validator = Validator {
+            address: "test".to_string(),
+            stake: 1000,
+            beta_angle: 40.0,
+            efficiency: 0.92,
+            last_active: Utc::now(),
+            is_active: true,
+        };
+
+        let torque = validator.calculate_torque(10.0);
+        assert!(torque > 0.0);
+        assert!(validator.can_vote(10.0));
     }
 
-    async fn validate_transactions(&self, transactions: Vec<Transaction>) -> Result<Vec<Transaction>> {
-        let mut valid_transactions = Vec::new();
+    #[tokio::test]
+    async fn test_self_lock_validation() {
+        let validator = Validator {
+            address: "test".to_string(),
+            stake: 1000,
+            beta_angle: 40.0,
+            efficiency: 0.92,
+            last_active: Utc::now(),
+            is_active: true,
+        };
 
-        for tx in transactions {
-            if self.validate_transaction(&tx).await? {
-                valid_transactions.push(tx);
+        assert!(validator.validate_self_lock());
+
+        let invalid_validator = Validator {
+            beta_angle: 80.0, // Too high angle
+            ..validator
+        };
+
+        assert!(!invalid_validator.validate_self_lock());
+    }
+
+    #[tokio::test]
+    async fn test_block_proposal() {
+        let state = Arc::new(ChainState::new());
+        let consensus = RotaryBFT::new(state);
+        
+        consensus.initialize_genesis_validators().await.unwrap();
+        
+        let transactions = vec![
+            Transaction {
+                hash: "tx1".to_string(),
+                from: "alice".to_string(),
+                to: "bob".to_string(),
+                amount: 100,
+                gas_price: 21,
+                gas_limit: 21000,
+                nonce: 1,
+                data: Vec::new(),
+                signature: "sig1".to_string(),
+                timestamp: Utc::now(),
             }
-        }
+        ];
 
-        Ok(valid_transactions)
-    }
-
-    async fn validate_transaction(&self, tx: &Transaction) -> Result<bool> {
-        // Basic validation
-        if tx.amount == 0 {
-            return Ok(false);
-        }
-
-        if tx.from == tx.to {
-            return Ok(false);
-        }
-
-        // Check sender has sufficient balance
-        let sender_balance = self.chain_state.get_account_balance(&tx.from).await?;
-        if sender_balance < tx.amount + (tx.gas_price * tx.gas_limit) {
-            return Ok(false);
-        }
-
-        // TODO: Validate signature
-        // TODO: Validate nonce
-
-        Ok(true)
-    }
-
-    fn calculate_merkle_root(&self, transactions: &[Transaction]) -> Result<String> {
-        if transactions.is_empty() {
-            return Ok("empty_tree".to_string());
-        }
-
-        // Simple implementation - should use proper Merkle tree
-        let mut hasher = sha3::Keccak256::new();
-        for tx in transactions {
-            hasher.update(tx.hash.as_bytes());
-        }
-
-        Ok(hex::encode(hasher.finalize()))
-    }
-
-    fn calculate_block_hash(&self, block: &Block) -> Result<String> {
-        use sha3::{Digest, Keccak256};
-
-        let mut hasher = Keccak256::new();
-        hasher.update(block.previous_hash.as_bytes());
-        hasher.update(&block.height.to_le_bytes());
-        hasher.update(block.timestamp.timestamp().to_le_bytes());
-        hasher.update(block.merkle_root.as_bytes());
-        hasher.update(block.validator.as_bytes());
-
-        Ok(hex::encode(hasher.finalize()))
-    }
-
-    pub async fn calculate_validator_torque(&self, validator: &Validator, network_load: f64) -> f64 {
-        if network_load <= 0.0 {
-            return 0.0;
-        }
-
-        let beta_rad = validator.beta_angle.to_radians();
-        let base_torque = (validator.stake as f64) * beta_rad.sin() / network_load;
-        base_torque * validator.efficiency
-    }
-
-    pub async fn is_self_lock_active(&self, cpu_temp: f64) -> bool {
-        // Self-lock is active if CPU temperature is below 80°C
-        cpu_temp < 80.0
+        let block = consensus.propose_block(transactions).await.unwrap();
+        assert_eq!(block.height, 1);
+        assert!(!block.hash.is_empty());
     }
 }

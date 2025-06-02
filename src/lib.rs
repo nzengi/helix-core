@@ -27,78 +27,131 @@ pub mod token;
 pub mod wallet;
 
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use anyhow::Result;
 
 use crate::config::Config;
-use crate::consensus::ConsensusManager;
-use crate::crypto::CryptoManager;
-use crate::database::Database;
-use crate::network_manager::NetworkManager;
-use crate::security_audit::SecurityAuditManager;
+use crate::consensus::RotaryBFT;
 use crate::state::ChainState;
-use crate::wallet::HelixWallet;
+use crate::crypto::CryptoManager;
+use crate::network_manager::NetworkManager;
 
+#[derive(Clone)]
 pub struct HelixNode {
     pub config: Config,
-    pub crypto_manager: Arc<CryptoManager>,
-    pub consensus_manager: Arc<Mutex<ConsensusManager>>,
     pub chain_state: Arc<ChainState>,
-    pub network_manager: Arc<NetworkManager>,
-    pub security_audit: Arc<SecurityAuditManager>,
-    pub database: Arc<Database>,
-    pub wallet: Arc<Mutex<HelixWallet>>,
+    pub consensus: Arc<RotaryBFT>,
+    pub crypto: Arc<tokio::sync::Mutex<CryptoManager>>,
+    pub network: Arc<RwLock<Option<NetworkManager>>>,
+    pub is_running: Arc<RwLock<bool>>,
 }
 
 impl HelixNode {
     pub async fn new(config: Config) -> Result<Self> {
-        let crypto_manager = Arc::new(CryptoManager::new());
-        let database = Arc::new(Database::new(&config.database).await?);
-        let chain_state = Arc::new(ChainState::new(database.clone()).await?);
-        let security_audit = Arc::new(SecurityAuditManager::new());
-        let network_manager = Arc::new(NetworkManager::new(config.network.clone()).await?);
-        let consensus_manager = Arc::new(Mutex::new(ConsensusManager::new(
-            chain_state.clone(),
-            crypto_manager.clone(),
-        )));
-        let wallet = Arc::new(Mutex::new(HelixWallet::new(&config.wallet.seed)?));
-
+        let chain_state = Arc::new(ChainState::new());
+        let consensus = Arc::new(RotaryBFT::new(chain_state.clone()));
+        let crypto = Arc::new(tokio::sync::Mutex::new(CryptoManager::new()));
+        
         Ok(Self {
             config,
-            crypto_manager,
-            consensus_manager,
             chain_state,
-            network_manager,
-            security_audit,
-            database,
-            wallet,
+            consensus,
+            crypto,
+            network: Arc::new(RwLock::new(None)),
+            is_running: Arc::new(RwLock::new(false)),
         })
     }
 
     pub async fn start(&self) -> Result<()> {
-        tracing::info!("Starting HelixNode");
+        tracing::info!("🚀 Starting HelixChain node...");
         
-        // Start network manager
-        self.network_manager.start().await?;
+        // Initialize genesis validators
+        self.consensus.initialize_genesis_validators().await?;
         
-        // Start consensus
-        let consensus = self.consensus_manager.lock().await;
-        consensus.start().await?;
+        // Initialize network
+        let network_manager = NetworkManager::new(self.config.clone()).await?;
+        {
+            let mut network = self.network.write().await;
+            *network = Some(network_manager);
+        }
         
-        tracing::info!("HelixNode started successfully");
+        // Mark as running
+        {
+            let mut running = self.is_running.write().await;
+            *running = true;
+        }
+        
+        tracing::info!("✅ HelixChain node started successfully");
         Ok(())
     }
 
     pub async fn stop(&self) -> Result<()> {
-        tracing::info!("Stopping HelixNode");
+        tracing::info!("🛑 Stopping HelixChain node...");
         
-        // Stop services in reverse order
-        let consensus = self.consensus_manager.lock().await;
-        consensus.stop().await?;
+        {
+            let mut running = self.is_running.write().await;
+            *running = false;
+        }
         
-        self.network_manager.stop().await?;
+        {
+            let mut network = self.network.write().await;
+            if let Some(net) = network.take() {
+                net.stop().await?;
+            }
+        }
         
-        tracing::info!("HelixNode stopped successfully");
+        tracing::info!("✅ HelixChain node stopped");
         Ok(())
     }
+
+    pub async fn is_running(&self) -> bool {
+        *self.is_running.read().await
+    }
+
+    pub async fn submit_transaction(&self, transaction: consensus::Transaction) -> Result<String> {
+        // Validate transaction
+        if !self.chain_state.validate_transaction(&transaction).await? {
+            anyhow::bail!("Invalid transaction");
+        }
+        
+        // Add to pending pool
+        self.chain_state.add_pending_transaction(transaction.clone()).await?;
+        
+        // Broadcast to network if available
+        if let Some(network) = self.network.read().await.as_ref() {
+            network.broadcast_transaction(&transaction).await?;
+        }
+        
+        Ok(transaction.hash)
+    }
+
+    pub async fn mine_block(&self) -> Result<consensus::Block> {
+        let pending_transactions = self.chain_state.get_pending_transactions().await?;
+        let block = self.consensus.propose_block(pending_transactions).await?;
+        
+        if self.consensus.validate_and_commit_block(block.clone()).await? {
+            self.chain_state.clear_pending_transactions().await?;
+            
+            // Broadcast block if network available
+            if let Some(network) = self.network.read().await.as_ref() {
+                network.broadcast_block(&block).await?;
+            }
+            
+            tracing::info!("📦 Mined block {} with {} transactions", 
+                block.height, block.transactions.len());
+            
+            Ok(block)
+        } else {
+            anyhow::bail!("Failed to commit block")
+        }
+    }
+
+    pub async fn get_validators(&self) -> Result<Vec<consensus::Validator>> {
+        self.consensus.get_validators().await
+    }
 }
+
+// Re-export commonly used types
+pub use crate::consensus::{Block, Transaction, Validator};
+pub use crate::state::{Account, ChainInfo, SyncStatus};
+pub use crate::crypto::{KeyPair, MerkleTree};
