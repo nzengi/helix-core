@@ -8,10 +8,10 @@ use rand::{rngs::OsRng, RngCore};
 use anyhow::Result;
 
 use crate::address::{Address, AddressGenerator, GearParameters};
-use crate::crypto::{CryptoManager, KeyPair};
+use crate::crypto::CryptoManager;
 use crate::consensus::Transaction;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct WalletAccount {
     pub address: Address,
     pub private_key: SecretKey,
@@ -332,91 +332,4 @@ pub struct KeyPair {
     pub private_key: SecretKey,
     pub public_key: PublicKey,
     pub address: String,
-}
-
-impl serde::Serialize for KeyPair {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("KeyPair", 3)?;
-        state.serialize_field("private_key", &self.private_key.secret_bytes())?;
-        state.serialize_field("public_key", &self.public_key.serialize())?;
-        state.serialize_field("address", &self.address)?;
-        state.end()
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for KeyPair {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::{self, Deserializer, MapAccess, Visitor};
-        use std::fmt;
-
-        struct KeyPairVisitor;
-
-        impl<'de> Visitor<'de> for KeyPairVisitor {
-            type Value = KeyPair;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct KeyPair")
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<KeyPair, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut private_key_bytes: Option<[u8; 32]> = None;
-                let mut public_key_bytes: Option<[u8; 33]> = None;
-                let mut address: Option<String> = None;
-
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        "private_key" => {
-                            if private_key_bytes.is_some() {
-                                return Err(de::Error::duplicate_field("private_key"));
-                            }
-                            private_key_bytes = Some(map.next_value()?);
-                        }
-                        "public_key" => {
-                            if public_key_bytes.is_some() {
-                                return Err(de::Error::duplicate_field("public_key"));
-                            }
-                            public_key_bytes = Some(map.next_value()?);
-                        }
-                        "address" => {
-                            if address.is_some() {
-                                return Err(de::Error::duplicate_field("address"));
-                            }
-                            address = Some(map.next_value()?);
-                        }
-                        _ => {
-                            let _: serde_json::Value = map.next_value()?;
-                        }
-                    }
-                }
-
-                let private_key_bytes = private_key_bytes.ok_or_else(|| de::Error::missing_field("private_key"))?;
-                let public_key_bytes = public_key_bytes.ok_or_else(|| de::Error::missing_field("public_key"))?;
-                let address = address.ok_or_else(|| de::Error::missing_field("address"))?;
-
-                let private_key = SecretKey::from_slice(&private_key_bytes)
-                    .map_err(|e| de::Error::custom(format!("Invalid private key: {}", e)))?;
-                let public_key = PublicKey::from_slice(&public_key_bytes)
-                    .map_err(|e| de::Error::custom(format!("Invalid public key: {}", e)))?;
-
-                Ok(KeyPair {
-                    private_key,
-                    public_key,
-                    address,
-                })
-            }
-        }
-
-        const FIELDS: &'static [&'static str] = &["private_key", "public_key", "address"];
-        deserializer.deserialize_struct("KeyPair", FIELDS, KeyPairVisitor)
-    }
 }

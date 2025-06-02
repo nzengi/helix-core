@@ -1,9 +1,17 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
-use tokio::sync::RwLock;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use sha3::{Digest, Keccak256};
 use hex;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChainStatus {
+    pub height: u64,
+    pub best_block_hash: String,
+    pub total_transactions: u64,
+    pub validator_count: u64,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
@@ -76,26 +84,88 @@ pub enum StateError {
 
 #[derive(Debug)]
 pub struct ChainState {
-    accounts: Arc<RwLock<HashMap<String, Account>>>,
-    transaction_pool: Arc<RwLock<Vec<Transaction>>>,
-    blocks: Arc<RwLock<Vec<Block>>>,
-    current_block_height: Arc<RwLock<u64>>,
-    total_supply: Arc<RwLock<u64>>,
-    transaction_count: Arc<RwLock<u64>>,
-    state_root: Arc<RwLock<String>>,
+    accounts: Arc<Mutex<HashMap<String, Account>>>,
+    pending_transactions: Arc<Mutex<Vec<Transaction>>>,
+    blocks: Arc<Mutex<Vec<Block>>>,
+    validator_set: Arc<Mutex<Vec<String>>>,
+    current_height: Arc<Mutex<u64>>,
+    total_supply: Arc<Mutex<u64>>,
 }
+
+const INITIAL_SUPPLY: u64 = 1_000_000_000;
 
 impl ChainState {
     pub fn new() -> Self {
         Self {
-            accounts: Arc::new(RwLock::new(HashMap::new())),
-            transaction_pool: Arc::new(RwLock::new(Vec::new())),
-            blocks: Arc::new(RwLock::new(Vec::new())),
-            current_block_height: Arc::new(RwLock::new(0)),
-            total_supply: Arc::new(RwLock::new(1_000_000_000)), // 1B initial supply
-            transaction_count: Arc::new(RwLock::new(0)),
-            state_root: Arc::new(RwLock::new(String::new())),
+            accounts: Arc::new(Mutex::new(HashMap::new())),
+            pending_transactions: Arc::new(Mutex::new(Vec::new())),
+            blocks: Arc::new(Mutex::new(Vec::new())),
+            validator_set: Arc::new(Mutex::new(Vec::new())),
+            current_height: Arc::new(Mutex::new(0)),
+            total_supply: Arc::new(Mutex::new(INITIAL_SUPPLY)),
         }
+    }
+
+    pub async fn get_status(&self) -> Result<ChainStatus, StateError> {
+        let height = *self.current_height.lock().await;
+        let blocks = self.blocks.lock().await;
+        let best_block_hash = blocks.last()
+            .map(|b| b.hash.clone())
+            .unwrap_or_else(|| "genesis".to_string());
+
+        Ok(ChainStatus {
+            height,
+            best_block_hash,
+            total_transactions: 0,
+            validator_count: 0,
+        })
+    }
+
+    pub async fn get_block(&self, hash: &str) -> Result<Option<Block>, StateError> {
+        let blocks = self.blocks.lock().await;
+        Ok(blocks.iter().find(|b| b.hash == hash).cloned())
+    }
+
+    pub async fn get_transaction(&self, hash: &str) -> Result<Option<Transaction>, StateError> {
+        let pending = self.pending_transactions.lock().await;
+        Ok(pending.iter().find(|tx| tx.hash == hash).cloned())
+    }
+
+    pub async fn get_account_balance(&self, address: &str) -> Result<u64, StateError> {
+        let accounts = self.accounts.lock().await;
+        Ok(accounts.get(address).map(|acc| acc.balance).unwrap_or(0))
+    }
+
+    pub async fn get_pending_transactions(&self) -> Result<Vec<Transaction>, StateError> {
+        let pending = self.pending_transactions.lock().await;
+        Ok(pending.clone())
+    }
+
+    pub async fn execute_transactions(&self, transactions: &[Transaction]) -> Result<(), StateError> {
+        for tx in transactions {
+            // Convert and execute transaction
+            tracing::debug!("Executing transaction: {}", tx.hash);
+        }
+        Ok(())
+    }
+
+    pub async fn add_block(&self, block: &Block) -> Result<(), StateError> {
+        let mut blocks = self.blocks.lock().await;
+        let state_block = Block {
+            index: block.index,
+            hash: block.hash.clone(),
+            previous_hash: block.previous_hash.clone(),
+            timestamp: block.timestamp,
+            transactions: block.transactions.clone(),
+            merkle_root: block.merkle_root.clone(),
+            signatures: block.signatures.clone(),
+        };
+        blocks.push(state_block);
+
+        let mut height = self.current_height.lock().await;
+        *height = block.index;
+
+        Ok(())
     }
 
 
@@ -160,25 +230,25 @@ impl ChainState {
     }
 
     pub async fn add_pending_transaction(&self, transaction: Transaction) -> Result<(), StateError> {
-        let mut pool = self.transaction_pool.write().await;
+        let mut pool = self.pending_transactions.lock().await;
         pool.push(transaction);
         Ok(())
     }
 
     pub async fn get_account(&self, address: &str) -> Option<Account> {
-        let accounts = self.accounts.read().await;
+        let accounts = self.accounts.lock().await;
         accounts.get(address).cloned()
     }
 
     pub async fn get_balance(&self, address: &str) -> u64 {
-        let accounts = self.accounts.read().await;
+        let accounts = self.accounts.lock().await;
         accounts.get(address)
             .map(|account| account.balance)
             .unwrap_or(0)
     }
 
     pub async fn get_nonce(&self, address: &str) -> u64 {
-        let accounts = self.accounts.read().await;
+        let accounts = self.accounts.lock().await;
         accounts.get(address)
             .map(|account| account.nonce)
             .unwrap_or(0)

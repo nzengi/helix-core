@@ -106,10 +106,10 @@ impl SmartContractManager {
 
         // Return result
         Ok(ContractResult {
-            success: result.is_ok(),
-            return_data: result.unwrap_or_default(),
+            success: true,
+            return_data: result?,
             gas_used,
-            error: result.err().map(|e| e.to_string()),
+            error: None,
         })
     }
 

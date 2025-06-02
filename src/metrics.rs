@@ -302,4 +302,4 @@ pub enum MetricsError {
     SerializationError(#[from] serde_json::Error),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
-} 
+}

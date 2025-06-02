@@ -170,7 +170,7 @@ async fn get_account(
 ) -> impl IntoResponse {
     match state.node.chain_state.get_account(&address).await {
         Some(account) => Json(ApiResponse::success(account)),
-        None => Json(ApiResponse::<Account>::error("Account not found")),
+        None => Json(ApiResponse::<Account>::error("Account not found".to_string())),
     }
 }
 
@@ -205,7 +205,7 @@ async fn add_validator(
         is_active: true,
     };
 
-    let consensus = state.node.consensus_manager.lock().await;
+    let consensus = &state.node.consensus;
     match consensus.add_validator(validator.clone()).await {
         Ok(_) => Json(ApiResponse::success(validator)),
         Err(e) => {

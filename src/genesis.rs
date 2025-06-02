@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use sha3::{Keccak256, Digest};
 use serde::{Serialize, Deserialize};
-use crate::state::Account;
+
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Account {
+pub struct GenesisAccount {
     pub address: String,
     pub nonce: u64,
     pub shard_id: u32,

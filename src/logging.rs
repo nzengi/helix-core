@@ -1,4 +1,10 @@
+` tags.
 
+```
+Applying Debug trait to Metrics and fix counter usage
+```
+
+<replit_final_file>
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn, error, debug, Level};
@@ -8,7 +14,7 @@ use tracing_subscriber::{
     EnvFilter,
 };
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use metrics::{counter, gauge, histogram};
+use metrics::{counter, gauge, histogram, Counter, Gauge, Histogram};
 use metrics_exporter_prometheus::PrometheusBuilder;
 use crate::config::LoggingConfig;
 
@@ -18,14 +24,27 @@ pub struct Logger {
     metrics: Arc<Metrics>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Metrics {
-    pub block_height: metrics::Counter,
-    pub transaction_count: metrics::Counter,
-    pub peer_count: metrics::Gauge,
-    pub block_time: metrics::Histogram,
-    pub shard_load: metrics::Gauge,
-    pub network_latency: metrics::Histogram,
+    pub block_height: Counter,
+    pub transaction_count: Counter,
+    pub peer_count: Gauge,
+    pub block_time: Histogram,
+    pub shard_load: Gauge,
+    pub network_latency: Histogram,
+}
+
+impl Metrics {
+    pub fn new() -> Self {
+        Self {
+            block_height: metrics::counter!("block_height"),
+            transaction_count: metrics::counter!("transaction_count"),
+            peer_count: metrics::gauge!("peer_count"),
+            block_time: metrics::histogram!("block_time"),
+            shard_load: metrics::gauge!("shard_load"),
+            network_latency: metrics::histogram!("network_latency"),
+        }
+    }
 }
 
 impl Logger {
@@ -57,14 +76,7 @@ impl Logger {
             .map_err(|e| e.to_string())?;
 
         // Metrics yapılandırması
-        let metrics = Metrics {
-            block_height: metrics::counter!("block_height"),
-            transaction_count: metrics::counter!("transaction_count"),
-            peer_count: metrics::gauge!("peer_count"),
-            block_time: metrics::histogram!("block_time"),
-            shard_load: metrics::gauge!("shard_load"),
-            network_latency: metrics::histogram!("network_latency"),
-        };
+        let metrics = Metrics::new();
 
         // Prometheus exporter'ı başlat
         PrometheusBuilder::new()

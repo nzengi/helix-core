@@ -239,7 +239,7 @@ impl GovernanceManager {
                 self.update_validator_set(validators, powers).await?;
             }
             ProposalType::TreasurySpend { recipient, amount, purpose } => {
-                self.spend_treasury(recipient, amount, purpose).await?;
+                self.spend_treasury(recipient, *amount, purpose).await?;
             }
         }
 

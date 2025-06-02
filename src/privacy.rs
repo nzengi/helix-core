@@ -297,7 +297,9 @@ impl PrivacyManager {
         rng: &mut OsRng,
     ) -> Result<RangeProof, PrivacyError> {
         // Range proof oluşturma mantığı
-        Ok(RangeProof::default()) // TODO: Implement range proof creation
+        // Create a dummy proof for now
+        let dummy_proof = vec![0u8; 32];
+        RangeProof::from_bytes(&dummy_proof).map_err(|_| PrivacyError::ProofGenerationFailed)
     }
 
     fn verify_range_proof(

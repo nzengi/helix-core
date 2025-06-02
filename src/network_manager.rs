@@ -324,7 +324,7 @@ impl NetworkManager {
             NetworkMessage::Block(block) => {
                 // Forward block to consensus
             }
-            NetworkMessage::SyncRequest => {
+            NetworkMessage::SyncRequest { from_height: _ } => {
                 // Handle sync request
             }
             NetworkMessage::SyncResponse { blocks: _ } => {
