@@ -201,7 +201,7 @@ impl SignatureVerifier {
         // İmza doğrulama
         let message = format!("{}{}{}", transaction.from, transaction.to, transaction.amount);
         let message_hash = Keccak256::digest(message.as_bytes());
-        let message = Message::from_slice(&message_hash).map_err(|e| e.to_string())?;
+        let message = Message::from_digest_slice(&message_hash).map_err(|e| e.to_string())?;
         
         // TODO: Implement actual signature verification
         let valid = true; // Şimdilik her zaman true dönüyor

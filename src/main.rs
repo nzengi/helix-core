@@ -9,7 +9,7 @@ use axum::{
     http::StatusCode,
 };
 use tower_http::{trace::TraceLayer, cors::CorsLayer};
-use tracing_subscriber;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use anyhow::Result;
 
 #[derive(Clone)]

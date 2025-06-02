@@ -72,9 +72,8 @@ pub struct ChainState {
     blocks: Arc<RwLock<Vec<Block>>>,
     current_block_height: Arc<RwLock<u64>>,
     total_supply: Arc<RwLock<u64>>,
-    accounts: HashMap<String, Account>,
-    transaction_count: u64,
-    state_root: String,
+    transaction_count: Arc<RwLock<u64>>,
+    state_root: Arc<RwLock<String>>,
 }
 
 impl ChainState {
@@ -85,21 +84,22 @@ impl ChainState {
             blocks: Arc::new(RwLock::new(Vec::new())),
             current_block_height: Arc::new(RwLock::new(0)),
             total_supply: Arc::new(RwLock::new(1_000_000_000)), // 1B initial supply
-            accounts: HashMap::new(),
-            transaction_count: 0,
-            state_root: String::new(),
+            transaction_count: Arc::new(RwLock::new(0)),
+            state_root: Arc::new(RwLock::new(String::new())),
         }
     }
 
     
-    pub async fn apply_transaction(&mut self, transaction: &Transaction) -> Result<(), StateError> {
+    pub async fn apply_transaction(&self, transaction: &Transaction) -> Result<(), StateError> {
         // Validate transaction first
         if transaction.amount == 0 {
             return Err(StateError::InvalidTransaction("Zero amount transaction".to_string()));
         }
 
-        // Check if accounts exist and create if necessary
-        let from_account = self.accounts.get_mut(&transaction.from)
+        let mut accounts = self.accounts.write().await;
+
+        // Check if from account exists
+        let from_account = accounts.get_mut(&transaction.from)
             .ok_or(StateError::AccountNotFound)?;
 
         // Validate nonce
@@ -120,94 +120,79 @@ impl ChainState {
         from_account.nonce += 1;
 
         // Update recipient account
-        let to_account = self.accounts.entry(transaction.to.clone())
+        let to_account = accounts.entry(transaction.to.clone())
             .or_insert_with(|| Account::new(transaction.to.clone()));
         to_account.balance += transaction.amount;
 
-        // Process contract data if any
-        if !transaction.data.is_empty() {
-            self.process_contract_call(transaction).await?;
-        }
-
-        self.transaction_count += 1;
-
-        // Update state root
-        self.update_state_root().await?;
+        // Update transaction count
+        let mut tx_count = self.transaction_count.write().await;
+        *tx_count += 1;
 
         Ok(())
     }
 
-    async fn process_contract_call(&mut self, transaction: &Transaction) -> Result<(), StateError> {
-        // Basic contract execution simulation
-        // In a full implementation, this would involve WASM execution
+    pub async fn validate_transaction(&self, transaction: &Transaction) -> Result<bool, StateError> {
+        let accounts = self.accounts.read().await;
+        
+        // Check if from account exists
+        let from_account = accounts.get(&transaction.from)
+            .ok_or(StateError::AccountNotFound)?;
 
-        if transaction.to.starts_with("0x") && transaction.to.len() == 42 {
-            // Contract call
-            tracing::info!("Processing contract call to {}", transaction.to);
-
-            // For now, just store the data
-            // Real implementation would execute WASM contract
+        // Validate nonce
+        if from_account.nonce != transaction.nonce {
+            return Ok(false);
         }
 
+        // Calculate total cost
+        let gas_cost = transaction.gas_price * transaction.gas_limit;
+        let total_cost = transaction.amount + gas_cost;
+
+        Ok(from_account.balance >= total_cost)
+    }
+
+    pub async fn add_pending_transaction(&self, transaction: Transaction) -> Result<(), StateError> {
+        let mut pool = self.transaction_pool.write().await;
+        pool.push(transaction);
         Ok(())
     }
 
-    async fn update_state_root(&mut self) -> Result<(), StateError> {
-        // Calculate new state root based on all account states
-        let mut hasher = Keccak256::new();
-
-        // Sort accounts for deterministic hash
-        let mut sorted_accounts: Vec<_> = self.accounts.iter().collect();
-        sorted_accounts.sort_by_key(|(address, _)| *address);
-
-        for (address, account) in sorted_accounts {
-            hasher.update(address.as_bytes());
-            hasher.update(&account.balance.to_le_bytes());
-            hasher.update(&account.nonce.to_le_bytes());
-            hasher.update(&account.code_hash.as_bytes());
-            hasher.update(&account.storage_root.as_bytes());
-        }
-
-        self.state_root = hex::encode(hasher.finalize());
-
-        Ok(())
-    }
-
-    pub async fn get_account(&self, address: &str) -> Option<&Account> {
-        self.accounts.get(address)
+    pub async fn get_account(&self, address: &str) -> Option<Account> {
+        let accounts = self.accounts.read().await;
+        accounts.get(address).cloned()
     }
 
     pub async fn get_balance(&self, address: &str) -> u64 {
-        self.accounts.get(address)
+        let accounts = self.accounts.read().await;
+        accounts.get(address)
             .map(|account| account.balance)
             .unwrap_or(0)
     }
 
     pub async fn get_nonce(&self, address: &str) -> u64 {
-        self.accounts.get(address)
+        let accounts = self.accounts.read().await;
+        accounts.get(address)
             .map(|account| account.nonce)
             .unwrap_or(0)
     }
 
-    pub async fn create_account(&mut self, address: String) -> Result<(), StateError> {
-        if self.accounts.contains_key(&address) {
+    pub async fn create_account(&self, address: String) -> Result<(), StateError> {
+        let mut accounts = self.accounts.write().await;
+        if accounts.contains_key(&address) {
             return Err(StateError::AccountAlreadyExists);
         }
 
         let account = Account::new(address.clone());
-        self.accounts.insert(address, account);
-
-        self.update_state_root().await?;
+        accounts.insert(address, account);
 
         Ok(())
     }
 
-    pub async fn set_balance(&mut self, address: &str, balance: u64) -> Result<(), StateError> {
-        let account = self.accounts.get_mut(address)
+    pub async fn set_balance(&self, address: &str, balance: u64) -> Result<(), StateError> {
+        let mut accounts = self.accounts.write().await;
+        let account = accounts.get_mut(address)
             .ok_or(StateError::AccountNotFound)?;
 
         account.balance = balance;
-        self.update_state_root().await?;
 
         Ok(())
     }

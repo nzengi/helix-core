@@ -276,7 +276,7 @@ impl OracleManager {
         let mut weighted_sum = 0f64;
 
         for (value, &weight) in values.iter().zip(weights) {
-            let num_value: f64 = value.parse()?;
+            let num_value: f64 = value.parse().map_err(|e: std::num::ParseFloatError| OracleError::DataError(e.to_string()))?;
             weighted_sum += num_value * weight as f64;
             total_weight += weight as u64;
         }
