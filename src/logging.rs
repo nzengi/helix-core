@@ -1,10 +1,3 @@
-` tags.
-
-```
-Applying Debug trait to Metrics and fix counter usage
-```
-
-<replit_final_file>
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn, error, debug, Level};
@@ -24,7 +17,7 @@ pub struct Logger {
     metrics: Arc<Metrics>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Metrics {
     pub block_height: Counter,
     pub transaction_count: Counter,
@@ -34,16 +27,16 @@ pub struct Metrics {
     pub network_latency: Histogram,
 }
 
-impl Metrics {
-    pub fn new() -> Self {
-        Self {
-            block_height: metrics::counter!("block_height"),
-            transaction_count: metrics::counter!("transaction_count"),
-            peer_count: metrics::gauge!("peer_count"),
-            block_time: metrics::histogram!("block_time"),
-            shard_load: metrics::gauge!("shard_load"),
-            network_latency: metrics::histogram!("network_latency"),
-        }
+impl std::fmt::Debug for Metrics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Metrics")
+            .field("block_height", &"<Counter>")
+            .field("transaction_count", &"<Counter>")
+            .field("peer_count", &"<Gauge>")
+            .field("block_time", &"<Histogram>")
+            .field("shard_load", &"<Gauge>")
+            .field("network_latency", &"<Histogram>")
+            .finish()
     }
 }
 
