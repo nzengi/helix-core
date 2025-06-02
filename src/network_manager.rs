@@ -49,6 +49,136 @@ impl NetworkManager {
     }
 
     pub async fn start(&self) -> Result<()> {
+        let mut is_running = self.is_running.write().await;
+        if *is_running {
+            return Ok(());
+        }
+        
+        *is_running = true;
+        
+        // Start peer discovery
+        self.start_peer_discovery().await?;
+        
+        // Start message handling
+        self.start_message_handler().await?;
+        
+        tracing::info!("Network manager started on {}:{}", 
+            self.config.network.listen_addr, 
+            self.config.network.listen_port);
+        
+        Ok(())
+    }
+
+    pub async fn stop(&self) -> Result<()> {
+        let mut is_running = self.is_running.write().await;
+        *is_running = false;
+        
+        tracing::info!("Network manager stopped");
+        Ok(())
+    }
+
+    async fn start_peer_discovery(&self) -> Result<()> {
+        // Connect to bootstrap nodes
+        for bootstrap_node in &self.config.network.bootstrap_nodes {
+            if let Err(e) = self.connect_to_peer(bootstrap_node).await {
+                tracing::warn!("Failed to connect to bootstrap node {}: {}", bootstrap_node, e);
+            }
+        }
+        
+        Ok(())
+    }
+
+    async fn start_message_handler(&self) -> Result<()> {
+        // Start listening for incoming connections
+        let addr = format!("{}:{}", 
+            self.config.network.listen_addr, 
+            self.config.network.listen_port);
+        
+        tracing::info!("Starting to listen on {}", addr);
+        
+        // In a real implementation, this would start a TCP/UDP server
+        // For now, just log that we're ready to accept connections
+        
+        Ok(())
+    }
+
+    pub async fn connect_to_peer(&self, address: &str) -> Result<()> {
+        let peer_id = format!("peer_{}", uuid::Uuid::new_v4());
+        let peer = Peer {
+            id: peer_id.clone(),
+            address: address.to_string(),
+            port: self.config.network.listen_port,
+            connected: true,
+            last_seen: chrono::Utc::now(),
+        };
+        
+        let mut peers = self.peers.write().await;
+        peers.insert(peer_id, peer);
+        
+        tracing::info!("Connected to peer: {}", address);
+        Ok(())
+    }
+
+    pub async fn broadcast_message(&self, message: NetworkMessage) -> Result<()> {
+        let peers = self.peers.read().await;
+        
+        for (peer_id, peer) in peers.iter() {
+            if peer.connected {
+                if let Err(e) = self.send_message_to_peer(peer_id, &message).await {
+                    tracing::warn!("Failed to send message to peer {}: {}", peer_id, e);
+                }
+            }
+        }
+        
+        Ok(())
+    }
+
+    async fn send_message_to_peer(&self, peer_id: &str, message: &NetworkMessage) -> Result<()> {
+        // In a real implementation, this would serialize and send the message
+        tracing::debug!("Sending message to peer {}: {:?}", peer_id, message);
+        Ok(())
+    }
+
+    pub async fn handle_message(&self, peer_id: &str, message: NetworkMessage) -> Result<()> {
+        let handlers = self.message_handlers.read().await;
+        
+        for handler in handlers.iter() {
+            if let Err(e) = handler.handle_message(peer_id, message.clone()).await {
+                tracing::error!("Message handler error: {}", e);
+            }
+        }
+        
+        Ok(())
+    }
+
+    pub async fn add_message_handler(&self, handler: Box<dyn MessageHandler + Send + Sync>) {
+        let mut handlers = self.message_handlers.write().await;
+        handlers.push(handler);
+    }
+
+    pub async fn get_peer_count(&self) -> usize {
+        let peers = self.peers.read().await;
+        peers.len()
+    }
+
+    pub async fn get_connected_peers(&self) -> Vec<Peer> {
+        let peers = self.peers.read().await;
+        peers.values()
+            .filter(|peer| peer.connected)
+            .cloned()
+            .collect()
+    }
+
+    pub async fn disconnect_peer(&self, peer_id: &str) -> Result<()> {
+        let mut peers = self.peers.write().await;
+        if let Some(peer) = peers.get_mut(peer_id) {
+            peer.connected = false;
+            tracing::info!("Disconnected from peer: {}", peer_id);
+        }
+        Ok(())
+    }
+
+    pub async fn start(&self) -> Result<()> {
         tracing::info!("🌐 Starting network manager...");
 
         {

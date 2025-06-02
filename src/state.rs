@@ -1,8 +1,9 @@
-
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use tokio::sync::RwLock;
 use std::sync::Arc;
+use sha3::{Digest, Keccak256};
+use hex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
@@ -11,6 +12,22 @@ pub struct Account {
     pub nonce: u64,
     pub code: Option<Vec<u8>>, // Smart contract code
     pub storage: HashMap<String, String>,
+    pub code_hash: String,
+    pub storage_root: String,
+}
+
+impl Account {
+    pub fn new(address: String) -> Self {
+        Account {
+            address,
+            balance: 0,
+            nonce: 0,
+            code: None,
+            storage: HashMap::new(),
+            code_hash: String::new(),
+            storage_root: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +42,7 @@ pub struct Transaction {
     pub data: Vec<u8>,
     pub signature: String,
     pub timestamp: u64,
+    pub amount: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,12 +56,25 @@ pub struct Block {
     pub signatures: Vec<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StateError {
+    AccountNotFound,
+    InsufficientBalance,
+    AccountAlreadyExists,
+    InvalidTransaction(String),
+    InvalidNonce,
+    Other(String),
+}
+
 pub struct ChainState {
     accounts: Arc<RwLock<HashMap<String, Account>>>,
     transaction_pool: Arc<RwLock<Vec<Transaction>>>,
     blocks: Arc<RwLock<Vec<Block>>>,
     current_block_height: Arc<RwLock<u64>>,
     total_supply: Arc<RwLock<u64>>,
+    accounts: HashMap<String, Account>,
+    transaction_count: u64,
+    state_root: String,
 }
 
 impl ChainState {
@@ -54,251 +85,130 @@ impl ChainState {
             blocks: Arc::new(RwLock::new(Vec::new())),
             current_block_height: Arc::new(RwLock::new(0)),
             total_supply: Arc::new(RwLock::new(1_000_000_000)), // 1B initial supply
+            accounts: HashMap::new(),
+            transaction_count: 0,
+            state_root: String::new(),
         }
     }
 
-    pub async fn get_account(&self, address: &str) -> Option<Account> {
-        let accounts = self.accounts.read().await;
-        accounts.get(address).cloned()
-    }
-
-    pub async fn create_account(&self, address: String, initial_balance: u64) -> Result<(), String> {
-        let mut accounts = self.accounts.write().await;
-        
-        if accounts.contains_key(&address) {
-            return Err("Account already exists".to_string());
+    
+    pub async fn apply_transaction(&mut self, transaction: &Transaction) -> Result<(), StateError> {
+        // Validate transaction first
+        if transaction.amount == 0 {
+            return Err(StateError::InvalidTransaction("Zero amount transaction".to_string()));
         }
-        
-        let account = Account {
-            address: address.clone(),
-            balance: initial_balance,
-            nonce: 0,
-            code: None,
-            storage: HashMap::new(),
-        };
-        
-        accounts.insert(address, account);
-        Ok(())
-    }
 
-    pub async fn transfer(&self, from: &str, to: &str, amount: u64) -> Result<(), String> {
-        let mut accounts = self.accounts.write().await;
-        
-        // From account kontrolü
-        let mut from_account = accounts.get(from)
-            .ok_or("From account not found")?
-            .clone();
-        
-        if from_account.balance < amount {
-            return Err("Insufficient balance".to_string());
+        // Check if accounts exist and create if necessary
+        let from_account = self.accounts.get_mut(&transaction.from)
+            .ok_or(StateError::AccountNotFound)?;
+
+        // Validate nonce
+        if from_account.nonce != transaction.nonce {
+            return Err(StateError::InvalidNonce);
         }
-        
-        // To account kontrolü veya oluşturma
-        let mut to_account = accounts.get(to).cloned()
-            .unwrap_or_else(|| Account {
-                address: to.to_string(),
-                balance: 0,
-                nonce: 0,
-                code: None,
-                storage: HashMap::new(),
-            });
-        
-        // Transfer işlemi
-        from_account.balance -= amount;
-        to_account.balance += amount;
-        from_account.nonce += 1;
-        
-        // Hesapları güncelle
-        accounts.insert(from.to_string(), from_account);
-        accounts.insert(to.to_string(), to_account);
-        
-        Ok(())
-    }
 
-    pub async fn add_transaction(&self, transaction: Transaction) -> Result<(), String> {
-        // Transaction doğrulaması
-        self.validate_transaction(&transaction).await?;
-        
-        let mut pool = self.transaction_pool.write().await;
-        pool.push(transaction);
-        Ok(())
-    }
+        // Calculate total cost (amount + gas fees)
+        let gas_cost = transaction.gas_price * transaction.gas_limit;
+        let total_cost = transaction.amount + gas_cost;
 
-    pub async fn validate_transaction(&self, tx: &Transaction) -> Result<(), String> {
-        let accounts = self.accounts.read().await;
-        
-        // From account kontrolü
-        let from_account = accounts.get(&tx.from)
-            .ok_or("From account not found")?;
-        
-        // Balance kontrolü
-        let total_cost = tx.value + (tx.gas_limit * tx.gas_price);
         if from_account.balance < total_cost {
-            return Err("Insufficient balance for transaction".to_string());
+            return Err(StateError::InsufficientBalance);
         }
-        
-        // Nonce kontrolü
-        if tx.nonce != from_account.nonce + 1 {
-            return Err("Invalid nonce".to_string());
+
+        // Apply changes atomically
+        from_account.balance -= total_cost;
+        from_account.nonce += 1;
+
+        // Update recipient account
+        let to_account = self.accounts.entry(transaction.to.clone())
+            .or_insert_with(|| Account::new(transaction.to.clone()));
+        to_account.balance += transaction.amount;
+
+        // Process contract data if any
+        if !transaction.data.is_empty() {
+            self.process_contract_call(transaction).await?;
         }
-        
-        // Signature kontrolü (placeholder)
-        if tx.signature.is_empty() {
-            return Err("Missing signature".to_string());
-        }
-        
+
+        self.transaction_count += 1;
+
+        // Update state root
+        self.update_state_root().await?;
+
         Ok(())
     }
 
-    pub async fn get_pending_transactions(&self, limit: usize) -> Vec<Transaction> {
-        let pool = self.transaction_pool.read().await;
-        pool.iter().take(limit).cloned().collect()
-    }
+    async fn process_contract_call(&mut self, transaction: &Transaction) -> Result<(), StateError> {
+        // Basic contract execution simulation
+        // In a full implementation, this would involve WASM execution
 
-    pub async fn remove_transactions(&self, tx_hashes: &[String]) {
-        let mut pool = self.transaction_pool.write().await;
-        pool.retain(|tx| !tx_hashes.contains(&tx.hash));
-    }
+        if transaction.to.starts_with("0x") && transaction.to.len() == 42 {
+            // Contract call
+            tracing::info!("Processing contract call to {}", transaction.to);
 
-    pub async fn add_block(&self, block: Block) -> Result<(), String> {
-        // Blok doğrulaması
-        self.validate_block(&block).await?;
-        
-        // Transaction'ları işle
-        for tx in &block.transactions {
-            self.process_transaction(tx).await?;
+            // For now, just store the data
+            // Real implementation would execute WASM contract
         }
-        
-        // Bloku ekle
-        let mut blocks = self.blocks.write().await;
-        blocks.push(block);
-        
-        // Block height güncelle
-        let mut height = self.current_block_height.write().await;
-        *height += 1;
-        
+
         Ok(())
     }
 
-    async fn validate_block(&self, block: &Block) -> Result<(), String> {
-        let blocks = self.blocks.read().await;
-        let current_height = self.current_block_height.read().await;
-        
-        // Index kontrolü
-        if block.index != *current_height + 1 {
-            return Err("Invalid block index".to_string());
+    async fn update_state_root(&mut self) -> Result<(), StateError> {
+        // Calculate new state root based on all account states
+        let mut hasher = Keccak256::new();
+
+        // Sort accounts for deterministic hash
+        let mut sorted_accounts: Vec<_> = self.accounts.iter().collect();
+        sorted_accounts.sort_by_key(|(address, _)| *address);
+
+        for (address, account) in sorted_accounts {
+            hasher.update(address.as_bytes());
+            hasher.update(&account.balance.to_le_bytes());
+            hasher.update(&account.nonce.to_le_bytes());
+            hasher.update(&account.code_hash.as_bytes());
+            hasher.update(&account.storage_root.as_bytes());
         }
-        
-        // Previous hash kontrolü
-        if let Some(last_block) = blocks.last() {
-            if block.previous_hash != last_block.hash {
-                return Err("Invalid previous hash".to_string());
-            }
-        }
-        
-        // Timestamp kontrolü
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        
-        if block.timestamp > now + 60 {
-            return Err("Block timestamp too far in future".to_string());
-        }
-        
+
+        self.state_root = hex::encode(hasher.finalize());
+
         Ok(())
     }
 
-    async fn process_transaction(&self, tx: &Transaction) -> Result<(), String> {
-        // Gas fee hesaplama
-        let gas_fee = tx.gas_limit * tx.gas_price;
-        
-        // Transfer işlemi
-        self.transfer(&tx.from, &tx.to, tx.value).await?;
-        
-        // Gas fee ödemesi (validator'a)
-        // Şimdilik yakılan gas olarak işlem yapıyoruz
-        let mut accounts = self.accounts.write().await;
-        if let Some(mut from_account) = accounts.get(&tx.from).cloned() {
-            if from_account.balance >= gas_fee {
-                from_account.balance -= gas_fee;
-                accounts.insert(tx.from.clone(), from_account);
-            }
-        }
-        
-        Ok(())
+    pub async fn get_account(&self, address: &str) -> Option<&Account> {
+        self.accounts.get(address)
     }
 
-    pub async fn get_account_balance(&self, address: &str) -> u64 {
-        let accounts = self.accounts.read().await;
-        accounts.get(address)
-            .map(|acc| acc.balance)
+    pub async fn get_balance(&self, address: &str) -> u64 {
+        self.accounts.get(address)
+            .map(|account| account.balance)
             .unwrap_or(0)
     }
 
-    pub async fn get_account_nonce(&self, address: &str) -> u64 {
-        let accounts = self.accounts.read().await;
-        accounts.get(address)
-            .map(|acc| acc.nonce)
+    pub async fn get_nonce(&self, address: &str) -> u64 {
+        self.accounts.get(address)
+            .map(|account| account.nonce)
             .unwrap_or(0)
     }
 
-    pub async fn get_block_by_index(&self, index: u64) -> Option<Block> {
-        let blocks = self.blocks.read().await;
-        blocks.iter().find(|b| b.index == index).cloned()
-    }
+    pub async fn create_account(&mut self, address: String) -> Result<(), StateError> {
+        if self.accounts.contains_key(&address) {
+            return Err(StateError::AccountAlreadyExists);
+        }
 
-    pub async fn get_latest_block(&self) -> Option<Block> {
-        let blocks = self.blocks.read().await;
-        blocks.last().cloned()
-    }
+        let account = Account::new(address.clone());
+        self.accounts.insert(address, account);
 
-    pub async fn get_current_height(&self) -> u64 {
-        let height = self.current_block_height.read().await;
-        *height
-    }
+        self.update_state_root().await?;
 
-    pub async fn get_total_supply(&self) -> u64 {
-        let supply = self.total_supply.read().await;
-        *supply
-    }
-
-    pub async fn mint_tokens(&self, to: &str, amount: u64) -> Result<(), String> {
-        let mut accounts = self.accounts.write().await;
-        let mut supply = self.total_supply.write().await;
-        
-        let mut account = accounts.get(to).cloned()
-            .unwrap_or_else(|| Account {
-                address: to.to_string(),
-                balance: 0,
-                nonce: 0,
-                code: None,
-                storage: HashMap::new(),
-            });
-        
-        account.balance += amount;
-        *supply += amount;
-        
-        accounts.insert(to.to_string(), account);
         Ok(())
     }
 
-    pub async fn burn_tokens(&self, from: &str, amount: u64) -> Result<(), String> {
-        let mut accounts = self.accounts.write().await;
-        let mut supply = self.total_supply.write().await;
-        
-        let mut account = accounts.get(from)
-            .ok_or("Account not found")?
-            .clone();
-        
-        if account.balance < amount {
-            return Err("Insufficient balance to burn".to_string());
-        }
-        
-        account.balance -= amount;
-        *supply -= amount;
-        
-        accounts.insert(from.to_string(), account);
+    pub async fn set_balance(&mut self, address: &str, balance: u64) -> Result<(), StateError> {
+        let account = self.accounts.get_mut(address)
+            .ok_or(StateError::AccountNotFound)?;
+
+        account.balance = balance;
+        self.update_state_root().await?;
+
         Ok(())
     }
 }
@@ -315,25 +225,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_account_creation() {
-        let state = ChainState::new();
-        let result = state.create_account("0x123".to_string(), 1000).await;
+        let mut state = ChainState::new();
+        let result = state.create_account("0x123".to_string()).await;
         assert!(result.is_ok());
-        
+
         let account = state.get_account("0x123").await;
         assert!(account.is_some());
-        assert_eq!(account.unwrap().balance, 1000);
     }
 
     #[tokio::test]
-    async fn test_transfer() {
-        let state = ChainState::new();
-        state.create_account("0x123".to_string(), 1000).await.unwrap();
-        state.create_account("0x456".to_string(), 0).await.unwrap();
-        
-        let result = state.transfer("0x123", "0x456", 500).await;
+    async fn test_set_balance() {
+        let mut state = ChainState::new();
+        state.create_account("0x123".to_string()).await.unwrap();
+        let result = state.set_balance("0x123", 1000).await;
         assert!(result.is_ok());
-        
-        assert_eq!(state.get_account_balance("0x123").await, 500);
-        assert_eq!(state.get_account_balance("0x456").await, 500);
+
+        let balance = state.get_balance("0x123").await;
+        assert_eq!(balance, 1000);
     }
 }
