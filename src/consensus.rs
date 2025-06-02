@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::sync::{Mutex, RwLock};
@@ -67,7 +66,7 @@ impl Validator {
         if network_load <= 0.0 {
             return 0.0;
         }
-        
+
         let beta_rad = self.beta_angle.to_radians();
         (self.stake as f64) * beta_rad.sin() / network_load * self.efficiency
     }
@@ -79,10 +78,10 @@ impl Validator {
     pub fn validate_self_lock(&self) -> bool {
         const FRICTION_ANGLE: f64 = 8.5; // degrees
         const FRICTION_COEFF: f64 = 0.15;
-        
+
         let beta_rad = self.beta_angle.to_radians();
         let friction_rad = FRICTION_ANGLE.to_radians();
-        
+
         // tan(φ) ≤ μ·sec(β)
         friction_rad.tan() <= FRICTION_COEFF * beta_rad.cos().recip()
     }
@@ -103,7 +102,7 @@ impl RotaryBFT {
         if !validator.validate_self_lock() {
             anyhow::bail!("Validator fails self-lock validation");
         }
-        
+
         let mut validators = self.validators.write().await;
         validators.insert(validator.address.clone(), validator);
         Ok(())
@@ -112,14 +111,14 @@ impl RotaryBFT {
     pub async fn propose_block(&self, transactions: Vec<Transaction>) -> Result<Block> {
         let network_load = self.calculate_network_load().await;
         let proposer = self.select_block_proposer(network_load).await?;
-        
+
         // Validate transactions
         let valid_transactions = self.validate_transactions(transactions).await?;
-        
+
         // Create block
         let previous_block = self.get_latest_block().await?;
         let height = previous_block.height + 1;
-        
+
         let block = Block {
             hash: String::new(), // Will be calculated
             previous_hash: previous_block.hash,
@@ -135,19 +134,19 @@ impl RotaryBFT {
         // Calculate block hash
         let block_data = serde_json::to_string(&block)?;
         let block_hash = hex::encode(crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes()));
-        
+
         let mut final_block = block;
         final_block.hash = block_hash;
-        
+
         Ok(final_block)
     }
 
     pub async fn validate_and_commit_block(&self, block: Block) -> Result<bool> {
         let network_load = self.calculate_network_load().await;
-        
+
         // Calculate total torque from voting validators
         let total_torque = self.calculate_voting_torque(network_load).await?;
-        
+
         if total_torque < self.min_commit_torque {
             return Ok(false);
         }
@@ -159,10 +158,10 @@ impl RotaryBFT {
 
         // Execute transactions and update state
         self.chain_state.execute_transactions(&block.transactions).await?;
-        
+
         // Add block to chain
         self.chain_state.add_block(block).await?;
-        
+
         Ok(true)
     }
 
@@ -175,10 +174,10 @@ impl RotaryBFT {
 
     async fn select_block_proposer(&self, network_load: f64) -> Result<Validator> {
         let validators = self.validators.read().await;
-        
+
         let mut best_validator = None;
         let mut best_torque = 0.0;
-        
+
         for validator in validators.values() {
             if validator.can_vote(network_load) {
                 let torque = validator.calculate_torque(network_load);
@@ -188,32 +187,32 @@ impl RotaryBFT {
                 }
             }
         }
-        
+
         best_validator.ok_or_else(|| anyhow::anyhow!("No eligible validators found"))
     }
 
     async fn calculate_voting_torque(&self, network_load: f64) -> Result<f64> {
         let validators = self.validators.read().await;
         let mut total_torque = 0.0;
-        
+
         for validator in validators.values() {
             if validator.can_vote(network_load) {
                 total_torque += validator.calculate_torque(network_load);
             }
         }
-        
+
         Ok(total_torque)
     }
 
     async fn validate_transactions(&self, transactions: Vec<Transaction>) -> Result<Vec<Transaction>> {
         let mut valid_transactions = Vec::new();
-        
+
         for tx in transactions {
             if self.chain_state.validate_transaction(&tx).await? {
                 valid_transactions.push(tx);
             }
         }
-        
+
         Ok(valid_transactions)
     }
 
@@ -222,10 +221,10 @@ impl RotaryBFT {
         let mut temp_block = block.clone();
         temp_block.hash = String::new();
         temp_block.signature = String::new();
-        
+
         let block_data = serde_json::to_string(&temp_block)?;
         let calculated_hash = hex::encode(crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes()));
-        
+
         if calculated_hash != block.hash {
             return Ok(false);
         }
@@ -255,18 +254,18 @@ impl RotaryBFT {
         if transactions.is_empty() {
             return "empty".to_string();
         }
-        
+
         let tx_hashes: Vec<String> = transactions.iter()
             .map(|tx| tx.hash.clone())
             .collect();
-        
+
         let merkle_tree = crate::crypto::MerkleTree::new(tx_hashes);
         merkle_tree.root
     }
 
     async fn get_latest_block(&self) -> Result<Block> {
         let status = self.chain_state.get_status().await?;
-        
+
         if let Some(block) = self.chain_state.get_block(&status.best_block_hash).await? {
             Ok(block)
         } else {
@@ -371,9 +370,9 @@ mod tests {
     async fn test_block_proposal() {
         let state = Arc::new(ChainState::new());
         let consensus = RotaryBFT::new(state);
-        
+
         consensus.initialize_genesis_validators().await.unwrap();
-        
+
         let transactions = vec![
             Transaction {
                 hash: "tx1".to_string(),

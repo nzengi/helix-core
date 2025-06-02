@@ -70,9 +70,7 @@ wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ["console"] }
 wat = "1.0"
-wabt = "0.10"
 parity-wasm = "0.42"
-wasm-gc = "0.1"
 wasm-opt = "0.116.1"
 wasm-pack = "0.12"
 wasm-bindgen-test = "0.3"
@@ -82,6 +80,8 @@ url = "2.5"
 http = "1.0"
 # Remove problematic OpenSSL dependencies
 # reqwest = { version = "0.11", features = ["json"] }
+rustls = "0.21"
+rustls-pemfile = "1.0"
 
 [dev-dependencies]
 tokio-test = "0.4"

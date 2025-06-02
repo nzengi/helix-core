@@ -1,231 +1,305 @@
 
 use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
-use anyhow::Result;
-use crate::consensus::{Block, Transaction};
+use tokio::sync::RwLock;
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
     pub address: String,
     pub balance: u64,
     pub nonce: u64,
-    pub code: Option<Vec<u8>>,
+    pub code: Option<Vec<u8>>, // Smart contract code
     pub storage: HashMap<String, String>,
-    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ChainInfo {
-    pub height: u64,
-    pub best_block_hash: String,
-    pub total_difficulty: u64,
-    pub peer_count: u32,
-    pub sync_status: SyncStatus,
+pub struct Transaction {
+    pub hash: String,
+    pub from: String,
+    pub to: String,
+    pub value: u64,
+    pub gas_limit: u64,
+    pub gas_price: u64,
+    pub nonce: u64,
+    pub data: Vec<u8>,
+    pub signature: String,
+    pub timestamp: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum SyncStatus {
-    Synced,
-    Syncing { current: u64, target: u64 },
-    NotSynced,
+pub struct Block {
+    pub index: u64,
+    pub timestamp: u64,
+    pub previous_hash: String,
+    pub merkle_root: String,
+    pub transactions: Vec<Transaction>,
+    pub hash: String,
+    pub signatures: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
 pub struct ChainState {
     accounts: Arc<RwLock<HashMap<String, Account>>>,
-    blocks: Arc<RwLock<HashMap<String, Block>>>,
-    transactions: Arc<RwLock<HashMap<String, Transaction>>>,
-    chain_info: Arc<RwLock<ChainInfo>>,
-    pending_transactions: Arc<RwLock<Vec<Transaction>>>,
+    transaction_pool: Arc<RwLock<Vec<Transaction>>>,
+    blocks: Arc<RwLock<Vec<Block>>>,
+    current_block_height: Arc<RwLock<u64>>,
+    total_supply: Arc<RwLock<u64>>,
 }
 
 impl ChainState {
     pub fn new() -> Self {
         Self {
             accounts: Arc::new(RwLock::new(HashMap::new())),
-            blocks: Arc::new(RwLock::new(HashMap::new())),
-            transactions: Arc::new(RwLock::new(HashMap::new())),
-            chain_info: Arc::new(RwLock::new(ChainInfo {
-                height: 0,
-                best_block_hash: "genesis".to_string(),
-                total_difficulty: 0,
-                peer_count: 0,
-                sync_status: SyncStatus::NotSynced,
-            })),
-            pending_transactions: Arc::new(RwLock::new(Vec::new())),
+            transaction_pool: Arc::new(RwLock::new(Vec::new())),
+            blocks: Arc::new(RwLock::new(Vec::new())),
+            current_block_height: Arc::new(RwLock::new(0)),
+            total_supply: Arc::new(RwLock::new(1_000_000_000)), // 1B initial supply
         }
     }
 
-    pub async fn get_account(&self, address: &str) -> Result<Option<Account>> {
+    pub async fn get_account(&self, address: &str) -> Option<Account> {
         let accounts = self.accounts.read().await;
-        Ok(accounts.get(address).cloned())
+        accounts.get(address).cloned()
     }
 
-    pub async fn get_account_balance(&self, address: &str) -> Result<u64> {
-        let accounts = self.accounts.read().await;
-        match accounts.get(address) {
-            Some(account) => Ok(account.balance),
-            None => Ok(0),
-        }
-    }
-
-    pub async fn update_account_balance(&self, address: &str, balance: u64) -> Result<()> {
+    pub async fn create_account(&self, address: String, initial_balance: u64) -> Result<(), String> {
         let mut accounts = self.accounts.write().await;
         
-        let account = accounts.entry(address.to_string()).or_insert_with(|| Account {
-            address: address.to_string(),
-            balance: 0,
+        if accounts.contains_key(&address) {
+            return Err("Account already exists".to_string());
+        }
+        
+        let account = Account {
+            address: address.clone(),
+            balance: initial_balance,
             nonce: 0,
             code: None,
             storage: HashMap::new(),
-            created_at: Utc::now(),
-        });
+        };
         
-        account.balance = balance;
+        accounts.insert(address, account);
         Ok(())
     }
 
-    pub async fn transfer(&self, from: &str, to: &str, amount: u64) -> Result<()> {
+    pub async fn transfer(&self, from: &str, to: &str, amount: u64) -> Result<(), String> {
         let mut accounts = self.accounts.write().await;
         
-        // Check sender balance
-        let sender = accounts.get_mut(from)
-            .ok_or_else(|| anyhow::anyhow!("Sender account not found"))?;
+        // From account kontrolü
+        let mut from_account = accounts.get(from)
+            .ok_or("From account not found")?
+            .clone();
         
-        if sender.balance < amount {
-            anyhow::bail!("Insufficient balance");
+        if from_account.balance < amount {
+            return Err("Insufficient balance".to_string());
         }
         
-        sender.balance -= amount;
-        sender.nonce += 1;
+        // To account kontrolü veya oluşturma
+        let mut to_account = accounts.get(to).cloned()
+            .unwrap_or_else(|| Account {
+                address: to.to_string(),
+                balance: 0,
+                nonce: 0,
+                code: None,
+                storage: HashMap::new(),
+            });
         
-        // Update receiver
-        let receiver = accounts.entry(to.to_string()).or_insert_with(|| Account {
-            address: to.to_string(),
-            balance: 0,
-            nonce: 0,
-            code: None,
-            storage: HashMap::new(),
-            created_at: Utc::now(),
-        });
+        // Transfer işlemi
+        from_account.balance -= amount;
+        to_account.balance += amount;
+        from_account.nonce += 1;
         
-        receiver.balance += amount;
+        // Hesapları güncelle
+        accounts.insert(from.to_string(), from_account);
+        accounts.insert(to.to_string(), to_account);
+        
         Ok(())
     }
 
-    pub async fn add_block(&self, block: Block) -> Result<()> {
+    pub async fn add_transaction(&self, transaction: Transaction) -> Result<(), String> {
+        // Transaction doğrulaması
+        self.validate_transaction(&transaction).await?;
+        
+        let mut pool = self.transaction_pool.write().await;
+        pool.push(transaction);
+        Ok(())
+    }
+
+    pub async fn validate_transaction(&self, tx: &Transaction) -> Result<(), String> {
+        let accounts = self.accounts.read().await;
+        
+        // From account kontrolü
+        let from_account = accounts.get(&tx.from)
+            .ok_or("From account not found")?;
+        
+        // Balance kontrolü
+        let total_cost = tx.value + (tx.gas_limit * tx.gas_price);
+        if from_account.balance < total_cost {
+            return Err("Insufficient balance for transaction".to_string());
+        }
+        
+        // Nonce kontrolü
+        if tx.nonce != from_account.nonce + 1 {
+            return Err("Invalid nonce".to_string());
+        }
+        
+        // Signature kontrolü (placeholder)
+        if tx.signature.is_empty() {
+            return Err("Missing signature".to_string());
+        }
+        
+        Ok(())
+    }
+
+    pub async fn get_pending_transactions(&self, limit: usize) -> Vec<Transaction> {
+        let pool = self.transaction_pool.read().await;
+        pool.iter().take(limit).cloned().collect()
+    }
+
+    pub async fn remove_transactions(&self, tx_hashes: &[String]) {
+        let mut pool = self.transaction_pool.write().await;
+        pool.retain(|tx| !tx_hashes.contains(&tx.hash));
+    }
+
+    pub async fn add_block(&self, block: Block) -> Result<(), String> {
+        // Blok doğrulaması
+        self.validate_block(&block).await?;
+        
+        // Transaction'ları işle
+        for tx in &block.transactions {
+            self.process_transaction(tx).await?;
+        }
+        
+        // Bloku ekle
         let mut blocks = self.blocks.write().await;
-        let mut chain_info = self.chain_info.write().await;
+        blocks.push(block);
         
-        blocks.insert(block.hash.clone(), block.clone());
-        
-        if block.height > chain_info.height {
-            chain_info.height = block.height;
-            chain_info.best_block_hash = block.hash.clone();
-        }
+        // Block height güncelle
+        let mut height = self.current_block_height.write().await;
+        *height += 1;
         
         Ok(())
     }
 
-    pub async fn get_block(&self, hash: &str) -> Result<Option<Block>> {
+    async fn validate_block(&self, block: &Block) -> Result<(), String> {
         let blocks = self.blocks.read().await;
-        Ok(blocks.get(hash).cloned())
-    }
-
-    pub async fn add_transaction(&self, transaction: Transaction) -> Result<()> {
-        let mut transactions = self.transactions.write().await;
-        transactions.insert(transaction.hash.clone(), transaction);
-        Ok(())
-    }
-
-    pub async fn get_transaction(&self, hash: &str) -> Result<Option<Transaction>> {
-        let transactions = self.transactions.read().await;
-        Ok(transactions.get(hash).cloned())
-    }
-
-    pub async fn add_pending_transaction(&self, transaction: Transaction) -> Result<()> {
-        let mut pending = self.pending_transactions.write().await;
-        pending.push(transaction);
-        Ok(())
-    }
-
-    pub async fn get_pending_transactions(&self) -> Result<Vec<Transaction>> {
-        let pending = self.pending_transactions.read().await;
-        Ok(pending.clone())
-    }
-
-    pub async fn clear_pending_transactions(&self) -> Result<()> {
-        let mut pending = self.pending_transactions.write().await;
-        pending.clear();
-        Ok(())
-    }
-
-    pub async fn get_status(&self) -> Result<ChainInfo> {
-        let chain_info = self.chain_info.read().await;
-        Ok(chain_info.clone())
-    }
-
-    pub async fn update_sync_status(&self, status: SyncStatus) -> Result<()> {
-        let mut chain_info = self.chain_info.write().await;
-        chain_info.sync_status = status;
-        Ok(())
-    }
-
-    pub async fn increment_nonce(&self, address: &str) -> Result<u64> {
-        let mut accounts = self.accounts.write().await;
+        let current_height = self.current_block_height.read().await;
         
-        let account = accounts.entry(address.to_string()).or_insert_with(|| Account {
-            address: address.to_string(),
-            balance: 0,
-            nonce: 0,
-            code: None,
-            storage: HashMap::new(),
-            created_at: Utc::now(),
-        });
-        
-        account.nonce += 1;
-        Ok(account.nonce)
-    }
-
-    pub async fn get_nonce(&self, address: &str) -> Result<u64> {
-        let accounts = self.accounts.read().await;
-        match accounts.get(address) {
-            Some(account) => Ok(account.nonce),
-            None => Ok(0),
+        // Index kontrolü
+        if block.index != *current_height + 1 {
+            return Err("Invalid block index".to_string());
         }
-    }
-
-    pub async fn execute_transactions(&self, transactions: &[Transaction]) -> Result<()> {
-        for tx in transactions {
-            // Execute transfer
-            if tx.amount > 0 {
-                self.transfer(&tx.from, &tx.to, tx.amount).await?;
+        
+        // Previous hash kontrolü
+        if let Some(last_block) = blocks.last() {
+            if block.previous_hash != last_block.hash {
+                return Err("Invalid previous hash".to_string());
             }
-            
-            // Add to transaction history
-            self.add_transaction(tx.clone()).await?;
         }
+        
+        // Timestamp kontrolü
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        if block.timestamp > now + 60 {
+            return Err("Block timestamp too far in future".to_string());
+        }
+        
         Ok(())
     }
 
-    pub async fn validate_transaction(&self, tx: &Transaction) -> Result<bool> {
-        // Check sender exists and has sufficient balance
-        let sender_balance = self.get_account_balance(&tx.from).await?;
-        if sender_balance < tx.amount {
-            return Ok(false);
+    async fn process_transaction(&self, tx: &Transaction) -> Result<(), String> {
+        // Gas fee hesaplama
+        let gas_fee = tx.gas_limit * tx.gas_price;
+        
+        // Transfer işlemi
+        self.transfer(&tx.from, &tx.to, tx.value).await?;
+        
+        // Gas fee ödemesi (validator'a)
+        // Şimdilik yakılan gas olarak işlem yapıyoruz
+        let mut accounts = self.accounts.write().await;
+        if let Some(mut from_account) = accounts.get(&tx.from).cloned() {
+            if from_account.balance >= gas_fee {
+                from_account.balance -= gas_fee;
+                accounts.insert(tx.from.clone(), from_account);
+            }
         }
+        
+        Ok(())
+    }
 
-        // Check nonce
-        let current_nonce = self.get_nonce(&tx.from).await?;
-        if tx.nonce != current_nonce + 1 {
-            return Ok(false);
+    pub async fn get_account_balance(&self, address: &str) -> u64 {
+        let accounts = self.accounts.read().await;
+        accounts.get(address)
+            .map(|acc| acc.balance)
+            .unwrap_or(0)
+    }
+
+    pub async fn get_account_nonce(&self, address: &str) -> u64 {
+        let accounts = self.accounts.read().await;
+        accounts.get(address)
+            .map(|acc| acc.nonce)
+            .unwrap_or(0)
+    }
+
+    pub async fn get_block_by_index(&self, index: u64) -> Option<Block> {
+        let blocks = self.blocks.read().await;
+        blocks.iter().find(|b| b.index == index).cloned()
+    }
+
+    pub async fn get_latest_block(&self) -> Option<Block> {
+        let blocks = self.blocks.read().await;
+        blocks.last().cloned()
+    }
+
+    pub async fn get_current_height(&self) -> u64 {
+        let height = self.current_block_height.read().await;
+        *height
+    }
+
+    pub async fn get_total_supply(&self) -> u64 {
+        let supply = self.total_supply.read().await;
+        *supply
+    }
+
+    pub async fn mint_tokens(&self, to: &str, amount: u64) -> Result<(), String> {
+        let mut accounts = self.accounts.write().await;
+        let mut supply = self.total_supply.write().await;
+        
+        let mut account = accounts.get(to).cloned()
+            .unwrap_or_else(|| Account {
+                address: to.to_string(),
+                balance: 0,
+                nonce: 0,
+                code: None,
+                storage: HashMap::new(),
+            });
+        
+        account.balance += amount;
+        *supply += amount;
+        
+        accounts.insert(to.to_string(), account);
+        Ok(())
+    }
+
+    pub async fn burn_tokens(&self, from: &str, amount: u64) -> Result<(), String> {
+        let mut accounts = self.accounts.write().await;
+        let mut supply = self.total_supply.write().await;
+        
+        let mut account = accounts.get(from)
+            .ok_or("Account not found")?
+            .clone();
+        
+        if account.balance < amount {
+            return Err("Insufficient balance to burn".to_string());
         }
-
-        // Basic validation passed
-        Ok(true)
+        
+        account.balance -= amount;
+        *supply -= amount;
+        
+        accounts.insert(from.to_string(), account);
+        Ok(())
     }
 }
 
@@ -240,33 +314,26 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_account_operations() {
+    async fn test_account_creation() {
         let state = ChainState::new();
+        let result = state.create_account("0x123".to_string(), 1000).await;
+        assert!(result.is_ok());
         
-        // Test balance operations
-        state.update_account_balance("alice", 1000).await.unwrap();
-        let balance = state.get_account_balance("alice").await.unwrap();
-        assert_eq!(balance, 1000);
-        
-        // Test transfer
-        state.update_account_balance("bob", 500).await.unwrap();
-        state.transfer("alice", "bob", 300).await.unwrap();
-        
-        let alice_balance = state.get_account_balance("alice").await.unwrap();
-        let bob_balance = state.get_account_balance("bob").await.unwrap();
-        
-        assert_eq!(alice_balance, 700);
-        assert_eq!(bob_balance, 800);
+        let account = state.get_account("0x123").await;
+        assert!(account.is_some());
+        assert_eq!(account.unwrap().balance, 1000);
     }
 
     #[tokio::test]
-    async fn test_nonce_management() {
+    async fn test_transfer() {
         let state = ChainState::new();
+        state.create_account("0x123".to_string(), 1000).await.unwrap();
+        state.create_account("0x456".to_string(), 0).await.unwrap();
         
-        let nonce1 = state.increment_nonce("alice").await.unwrap();
-        let nonce2 = state.increment_nonce("alice").await.unwrap();
+        let result = state.transfer("0x123", "0x456", 500).await;
+        assert!(result.is_ok());
         
-        assert_eq!(nonce1, 1);
-        assert_eq!(nonce2, 2);
+        assert_eq!(state.get_account_balance("0x123").await, 500);
+        assert_eq!(state.get_account_balance("0x456").await, 500);
     }
 }
