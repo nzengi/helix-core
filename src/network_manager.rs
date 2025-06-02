@@ -53,26 +53,26 @@ impl NetworkManager {
         if *is_running {
             return Ok(());
         }
-        
+
         *is_running = true;
-        
+
         // Start peer discovery
         self.start_peer_discovery().await?;
-        
+
         // Start message handling
         self.start_message_handler().await?;
-        
+
         tracing::info!("Network manager started on {}:{}", 
             self.config.network.listen_addr, 
             self.config.network.listen_port);
-        
+
         Ok(())
     }
 
     pub async fn stop(&self) -> Result<()> {
         let mut is_running = self.is_running.write().await;
         *is_running = false;
-        
+
         tracing::info!("Network manager stopped");
         Ok(())
     }
@@ -84,7 +84,7 @@ impl NetworkManager {
                 tracing::warn!("Failed to connect to bootstrap node {}: {}", bootstrap_node, e);
             }
         }
-        
+
         Ok(())
     }
 
@@ -93,12 +93,12 @@ impl NetworkManager {
         let addr = format!("{}:{}", 
             self.config.network.listen_addr, 
             self.config.network.listen_port);
-        
+
         tracing::info!("Starting to listen on {}", addr);
-        
+
         // In a real implementation, this would start a TCP/UDP server
         // For now, just log that we're ready to accept connections
-        
+
         Ok(())
     }
 
@@ -111,17 +111,17 @@ impl NetworkManager {
             connected: true,
             last_seen: chrono::Utc::now(),
         };
-        
+
         let mut peers = self.peers.write().await;
         peers.insert(peer_id, peer);
-        
+
         tracing::info!("Connected to peer: {}", address);
         Ok(())
     }
 
     pub async fn broadcast_message(&self, message: NetworkMessage) -> Result<()> {
         let peers = self.peers.read().await;
-        
+
         for (peer_id, peer) in peers.iter() {
             if peer.connected {
                 if let Err(e) = self.send_message_to_peer(peer_id, &message).await {
@@ -129,7 +129,7 @@ impl NetworkManager {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -141,13 +141,13 @@ impl NetworkManager {
 
     pub async fn handle_message(&self, peer_id: &str, message: NetworkMessage) -> Result<()> {
         let handlers = self.message_handlers.read().await;
-        
+
         for handler in handlers.iter() {
             if let Err(e) = handler.handle_message(peer_id, message.clone()).await {
                 tracing::error!("Message handler error: {}", e);
             }
         }
-        
+
         Ok(())
     }
 
@@ -245,7 +245,7 @@ impl NetworkManager {
             .collect();
 
         for peer in connected_peers {
-            self.send_message_to_peer(&peer.id, message.clone()).await?;
+            self.send_message_to_peer(&peer.id, &message).await?;
         }
 
         Ok(())
@@ -329,7 +329,7 @@ impl NetworkManager {
             .collect())
     }
 
-    
+
 
     pub async fn sync_with_peers(&self, from_height: u64) -> Result<Vec<Block>> {
         let sync_request = NetworkMessage::SyncRequest { from_height };
@@ -370,7 +370,7 @@ impl MessageHandler for BlockchainMessageHandler {
                     timestamp: tx.timestamp.timestamp() as u64,
                     amount: tx.amount,
                 };
-                
+
                 if self.chain_state.validate_transaction(&state_tx).await.unwrap_or(false) {
                     self.chain_state.add_pending_transaction(state_tx).await.unwrap_or(());
                     tracing::info!("📝 Added transaction to pool from peer {}", peer_id);

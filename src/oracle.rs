@@ -151,7 +151,7 @@ impl OracleManager {
                     weights.push(source.weight);
                 }
                 Err(e) => {
-                    log::warn!("Failed to fetch data from source: {}", e);
+                    tracing::warn!("Failed to fetch data from source: {}", e);
                 }
             }
         }
@@ -228,10 +228,17 @@ impl OracleManager {
     }
 
     async fn fetch_data(&self, source: &DataSource) -> Result<String, OracleError> {
+        let method = match source.method.as_str() {
+            "GET" => reqwest::Method::GET,
+            "POST" => reqwest::Method::POST,
+            "PUT" => reqwest::Method::PUT,
+            "DELETE" => reqwest::Method::DELETE,
+            _ => reqwest::Method::GET,
+        };
+
         let response = self.client
-            .request(reqwest::Method::from_bytes(source.method.as_bytes())?)
-            .url(&source.url)
-            .headers(source.headers.clone().into())
+            .request(method, &source.url)
+            .headers(source.headers.clone().try_into().map_err(|e| OracleError::HttpError(format!("Invalid headers: {:?}", e)))?)
             .timeout(source.timeout)
             .send()
             .await?;
@@ -357,10 +364,6 @@ pub enum OracleError {
     VerificationFailed,
     #[error("Data error: {0}")]
     DataError(String),
-    #[error("Invalid data format")]
-    InvalidData,
-    #[error("Timeout")]
-    Timeout,
     #[error("Authorization failed")]
     Unauthorized,
     #[error("Rate limit exceeded")]
@@ -371,22 +374,28 @@ pub enum OracleError {
     InvalidSignature,
     #[error("VRF verification failed")]
     VrfVerificationFailed,
-    #[error("Network error: {0}")]
-    NetworkError(String),
-    #[error("Invalid data format")]
-    InvalidData,
-    #[error("Data parsing error: {0}")]
-    DataError(String),
-    #[error("Timeout")]
-    Timeout,
-    #[error("Authorization failed")]
-    Unauthorized,
-    #[error("Rate limit exceeded")]
-    RateLimitExceeded,
-    #[error("Service unavailable")]
-    ServiceUnavailable,
-    #[error("Invalid signature")]
-    InvalidSignature,
-    #[error("VRF verification failed")]
-    VrfVerificationFailed,
+    #[error("Network connection error: {0}")]
+    ConnectionError(String),
+    #[error("HTTP error: {0}")]
+    HttpError(String),
+    #[error("Parse failure: {0}")]
+    ParseFailure(String),
+}
+
+impl From<serde_json::Error> for OracleError {
+    fn from(error: serde_json::Error) -> Self {
+        OracleError::SerializationError(error)
+    }
+}
+
+impl From<reqwest::Error> for OracleError {
+    fn from(error: reqwest::Error) -> Self {
+        OracleError::NetworkError(error)
+    }
+}
+
+impl From<http::method::InvalidMethod> for OracleError {
+    fn from(error: http::method::InvalidMethod) -> Self {
+        OracleError::InvalidMethod(error.to_string())
+    }
 }

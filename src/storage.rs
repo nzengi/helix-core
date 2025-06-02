@@ -61,7 +61,8 @@ pub struct StorageManager {
 impl StorageManager {
     pub async fn new(config: StorageConfig) -> Result<Self, StorageError> {
         // IPFS istemcisini başlat
-        let ipfs_client = IpfsClient::from_str(&config.ipfs_api_url)?;
+        let ipfs_client = IpfsClient::from_str(&config.ipfs_api_url)
+            .map_err(|e| StorageError::ConfigError(e.to_string()))?;
 
         // Yerel depolama dizinini oluştur
         fs::create_dir_all(&config.local_path).await?;
@@ -204,12 +205,16 @@ impl StorageManager {
     }
 
     async fn upload_to_ipfs(&self, data: &[u8]) -> Result<String, StorageError> {
-        let response = self.ipfs_client.add(data).await?;
+        let data_owned = data.to_vec();
+        let cursor = std::io::Cursor::new(data_owned);
+        let response = self.ipfs_client.add(cursor).await?;
         Ok(response.hash)
     }
 
     async fn download_from_ipfs(&self, hash: &str) -> Result<Vec<u8>, StorageError> {
-        let data = self.ipfs_client.cat(hash).await?;
+        use futures::TryStreamExt;
+        let stream = self.ipfs_client.cat(hash);
+        let data: Vec<u8> = stream.try_collect().await?;
         Ok(data)
     }
 
@@ -280,6 +285,8 @@ pub enum StorageError {
     InvalidIpfsUrl,
     #[error("IPFS error: {0}")]
     IpfsError(#[from] ipfs_api_backend_hyper::Error),
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
     #[error("Encryption error: {0}")]

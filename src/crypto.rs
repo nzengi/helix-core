@@ -1,5 +1,5 @@
 use sha3::{Keccak256, Digest};
-use ed25519_dalek::{Keypair, PublicKey, SecretKey, Signature, Signer, Verifier};
+use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
 use rand::rngs::OsRng;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
@@ -23,7 +23,7 @@ pub enum CryptoError {
 
 #[derive(Debug, Clone)]
 pub struct CryptoManager {
-    keypairs: HashMap<String, Keypair>,
+    keypairs: HashMap<String, SigningKey>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,34 +47,38 @@ impl CryptoManager {
         }
     }
 
-    pub fn generate_keypair(&mut self, identifier: &str) -> Result<PublicKey, String> {
+    pub fn generate_keypair(&mut self, identifier: &str) -> Result<VerifyingKey, String> {
         let mut csprng = OsRng{};
-        let keypair = Keypair::generate(&mut csprng);
-        let public_key = keypair.public;
-        self.keypairs.insert(identifier.to_string(), keypair);
-        Ok(public_key)
+        let signing_key = SigningKey::generate(&mut csprng);
+        let verifying_key = signing_key.verifying_key();
+        self.keypairs.insert(identifier.to_string(), signing_key);
+        Ok(verifying_key)
     }
 
     pub fn sign_message(&self, identifier: &str, message: &[u8]) -> Result<DigitalSignature, String> {
-        let keypair = self.keypairs.get(identifier)
+        let signing_key = self.keypairs.get(identifier)
             .ok_or("Keypair not found")?;
 
         let message_hash = self.hash_data(message);
-        let signature = keypair.sign(&message_hash);
+        let signature = signing_key.sign(&message_hash);
 
         Ok(DigitalSignature {
             signature: signature.to_bytes().to_vec(),
-            public_key: keypair.public.to_bytes().to_vec(),
+            public_key: signing_key.verifying_key().to_bytes().to_vec(),
             message_hash: message_hash.to_vec(),
         })
     }
 
     pub fn verify_signature(&self, signature: &DigitalSignature, message: &[u8]) -> Result<bool, String> {
-        let public_key = PublicKey::from_bytes(&signature.public_key)
-            .map_err(|e| format!("Invalid public key: {}", e))?;
+        let public_key = VerifyingKey::from_bytes(
+            signature.public_key.as_slice().try_into()
+                .map_err(|_| "Invalid public key length")?
+        ).map_err(|e| format!("Invalid public key: {}", e))?;
 
-        let sig = Signature::from_bytes(&signature.signature)
-            .map_err(|e| format!("Invalid signature: {}", e))?;
+        let sig = Signature::from_bytes(
+            signature.signature.as_slice().try_into()
+                .map_err(|_| "Invalid signature length")?
+        );
 
         let message_hash = self.hash_data(message);
 
@@ -162,11 +166,24 @@ impl CryptoManager {
         // XOR decryption (same as encryption for XOR)
         self.encrypt_data(encrypted_data, key)
     }
+
+    pub fn hash_sha256(data: &[u8]) -> String {
+        let mut hasher = Keccak256::new();
+        hasher.update(data);
+        hex::encode(hasher.finalize())
+    }
 }
 
 impl Default for CryptoManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl MerkleTree {
+    pub fn new(data: Vec<Vec<u8>>) -> Self {
+        let crypto = CryptoManager::new();
+        crypto.create_merkle_tree(data)
     }
 }
 

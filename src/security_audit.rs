@@ -35,7 +35,7 @@ pub enum SecurityEventType {
     SystemCompromise,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum SecuritySeverity {
     Critical,
     High,
@@ -316,4 +316,6 @@ pub enum SecurityError {
     IoError(#[from] std::io::Error),
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
+    #[error("Address parse error: {0}")]
+    AddressParseError(#[from] std::net::AddrParseError),
 } 

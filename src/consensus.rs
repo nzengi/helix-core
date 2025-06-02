@@ -133,10 +133,10 @@ impl RotaryBFT {
 
         // Calculate block hash
         let block_data = serde_json::to_string(&block)?;
-        let block_hash = hex::encode(crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes()));
+        block.hash = crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes());
 
         let mut final_block = block;
-        final_block.hash = block_hash;
+        final_block.hash = block.hash;
 
         Ok(final_block)
     }
@@ -160,7 +160,7 @@ impl RotaryBFT {
         self.chain_state.execute_transactions(&block.transactions).await?;
 
         // Add block to chain
-        self.chain_state.add_block(block).await?;
+        self.chain_state.add_block(&block).await?;
 
         Ok(true)
     }
@@ -223,7 +223,7 @@ impl RotaryBFT {
         temp_block.signature = String::new();
 
         let block_data = serde_json::to_string(&temp_block)?;
-        let calculated_hash = hex::encode(crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes()));
+        let calculated_hash = crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes());
 
         if calculated_hash != block.hash {
             return Ok(false);

@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2021"
 
 [dependencies]
-tokio = { version = "1.35", features = ["full"] }
+tokio = { version = "1.0", features = ["full"] }
 axum = { version = "0.7", features = ["macros"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -12,7 +12,7 @@ sha2 = "0.10"
 sha3 = "0.10"
 blake2 = "0.10"
 ripemd = "0.1"
-secp256k1 = { version = "0.28", features = ["rand", "std", "serde"] }
+secp256k1 = { version = "0.28", features = ["rand-std", "recovery"] }
 rand = "0.8"
 hex = "0.4"
 thiserror = "1.0"
@@ -25,7 +25,7 @@ zeroize = "1.7"
 subtle = "2.5"
 async-trait = "0.1"
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "time"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
 libp2p = "0.53"
 tower = "0.4"
@@ -33,7 +33,7 @@ tower-http = { version = "0.5", features = ["cors", "trace"] }
 base58 = "0.2"
 hmac = "0.12"
 pbkdf2 = "0.12"
-ed25519-dalek = "2.1"
+ed25519-dalek = "2.0"
 x25519-dalek = "2.0"
 bytes = "1.5"
 futures-util = "0.3"
@@ -57,7 +57,7 @@ tower-util = "0.3"
 quick-xml = "0.31"
 csv = "1.3"
 url = "2.5"
-http = "1.0"
+http = "0.2"
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls"] }
 rustls = "0.21"
 rustls-pemfile = "1.0"
@@ -65,6 +65,12 @@ prometheus = "0.13"
 toml = "0.8"
 tracing-appender = "0.2"
 ipfs-api-backend-hyper = "0.6"
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+log = "0.4"
+curve25519-dalek = "4.0"
+bulletproofs = "4.0"
+merlin = "3.0"
 
 [dev-dependencies]
 tokio-test = "0.4"

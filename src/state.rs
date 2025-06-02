@@ -95,7 +95,7 @@ impl ChainState {
         }
     }
 
-    
+
     pub async fn apply_transaction(&self, transaction: &Transaction) -> Result<(), StateError> {
         // Validate transaction first
         if transaction.amount == 0 {
@@ -139,7 +139,7 @@ impl ChainState {
 
     pub async fn validate_transaction(&self, transaction: &Transaction) -> Result<bool, StateError> {
         let accounts = self.accounts.read().await;
-        
+
         // Check if from account exists
         let from_account = accounts.get(&transaction.from)
             .ok_or(StateError::AccountNotFound)?;

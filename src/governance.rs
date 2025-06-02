@@ -51,7 +51,7 @@ pub enum ProposalType {
     },
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ProposalStatus {
     Active,
     Passed,
