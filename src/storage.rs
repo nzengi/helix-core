@@ -173,8 +173,10 @@ impl StorageManager {
     }
 
     pub async fn delete_data(&self, id: &str) -> Result<(), StorageError> {
-        let mut data_map = self.data.lock().await;
-        let stored_data = data_map.get(id).ok_or(StorageError::DataNotFound)?;
+        let stored_data = {
+            let data_map = self.data.lock().await;
+            data_map.get(id).ok_or(StorageError::DataNotFound)?.clone()
+        };
 
         // IPFS'ten sil
         if let Some(ipfs_hash) = &stored_data.ipfs_hash {
@@ -186,7 +188,10 @@ impl StorageManager {
         fs::remove_file(local_path).await?;
 
         // Veriyi kayıtlardan sil
-        data_map.remove(id);
+        {
+            let mut data_map = self.data.lock().await;
+            data_map.remove(id);
+        }
 
         // İstatistikleri güncelle
         self.update_stats(false, stored_data.size, stored_data.is_encrypted, stored_data.is_compressed).await?;
@@ -214,7 +219,12 @@ impl StorageManager {
     async fn download_from_ipfs(&self, hash: &str) -> Result<Vec<u8>, StorageError> {
         use futures::TryStreamExt;
         let stream = self.ipfs_client.cat(hash);
-        let data: Vec<u8> = stream.try_collect().await?;
+        let data: Vec<u8> = stream.map_ok(|chunk| chunk.to_vec())
+            .try_collect::<Vec<_>>()
+            .await?
+            .into_iter()
+            .flatten()
+            .collect();
         Ok(data)
     }
 

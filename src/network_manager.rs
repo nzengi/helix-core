@@ -156,44 +156,6 @@ impl NetworkManager {
         handlers.push(handler);
     }
 
-    pub async fn start(&self) -> Result<()> {
-        tracing::info!("🌐 Starting network manager...");
-
-        {
-            let mut running = self.is_running.write().await;
-            *running = true;
-        }
-
-        // Connect to bootstrap nodes
-        for bootstrap_node in &self.config.network.bootstrap_nodes {
-            self.connect_to_peer(bootstrap_node).await?;
-        }
-
-        // Start peer discovery
-        self.start_peer_discovery().await?;
-
-        tracing::info!("✅ Network manager started");
-        Ok(())
-    }
-
-    pub async fn stop(&self) -> Result<()> {
-        tracing::info!("🛑 Stopping network manager...");
-
-        {
-            let mut running = self.is_running.write().await;
-            *running = false;
-        }
-
-        // Disconnect from all peers
-        let mut peers = self.peers.write().await;
-        for peer in peers.values_mut() {
-            peer.connected = false;
-        }
-
-        tracing::info!("✅ Network manager stopped");
-        Ok(())
-    }
-
     pub async fn connect_to_peer(&self, address: &str) -> Result<()> {
         let parts: Vec<&str> = address.split(':').collect();
         if parts.len() != 2 {

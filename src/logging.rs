@@ -1,3 +1,4 @@
+
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn, error, debug, Level};
@@ -9,7 +10,6 @@ use tracing_subscriber::{
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use metrics::{counter, gauge, histogram};
 use metrics_exporter_prometheus::PrometheusBuilder;
-use serde::{Serialize, Deserialize};
 use crate::config::LoggingConfig;
 
 #[derive(Clone, Debug)]
@@ -20,12 +20,12 @@ pub struct Logger {
 
 #[derive(Clone, Debug)]
 pub struct Metrics {
-    pub block_height: counter::Counter,
-    pub transaction_count: counter::Counter,
-    pub peer_count: gauge::Gauge,
-    pub block_time: histogram::Histogram,
-    pub shard_load: gauge::Gauge,
-    pub network_latency: histogram::Histogram,
+    pub block_height: metrics::Counter,
+    pub transaction_count: metrics::Counter,
+    pub peer_count: metrics::Gauge,
+    pub block_time: metrics::Histogram,
+    pub shard_load: metrics::Gauge,
+    pub network_latency: metrics::Histogram,
 }
 
 impl Logger {
@@ -58,12 +58,12 @@ impl Logger {
 
         // Metrics yapılandırması
         let metrics = Metrics {
-            block_height: counter!("block_height", "Current block height"),
-            transaction_count: counter!("transaction_count", "Total transaction count"),
-            peer_count: gauge!("peer_count", "Number of connected peers"),
-            block_time: histogram!("block_time", "Block creation time"),
-            shard_load: gauge!("shard_load", "Current shard load"),
-            network_latency: histogram!("network_latency", "Network latency"),
+            block_height: counter!("block_height"),
+            transaction_count: counter!("transaction_count"),
+            peer_count: gauge!("peer_count"),
+            block_time: histogram!("block_time"),
+            shard_load: gauge!("shard_load"),
+            network_latency: histogram!("network_latency"),
         };
 
         // Prometheus exporter'ı başlat
@@ -142,4 +142,4 @@ impl std::fmt::Display for LoggingError {
     }
 }
 
-impl std::error::Error for LoggingError {} 
+impl std::error::Error for LoggingError {}
