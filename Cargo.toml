@@ -68,7 +68,6 @@ ipfs-api-backend-hyper = "0.6"
 metrics = "0.21"
 metrics-exporter-prometheus = "0.12"
 log = "0.4"
-curve25519-dalek = "4.0"
 bulletproofs = "4.0"
 merlin = "3.0"
 

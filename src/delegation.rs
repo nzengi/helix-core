@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 use sha3::{Keccak256, Digest};
 use rand::{rngs::OsRng, RngCore};
+use hex;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Validator {

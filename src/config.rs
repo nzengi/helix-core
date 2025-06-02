@@ -55,6 +55,45 @@ pub struct WalletConfig {
     pub derivation_path: String,
 }
 
+use std::fs;
+use serde::{Serialize, Deserialize};
+use anyhow::Result;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
+    pub network: NetworkConfig,
+    pub consensus: ConsensusConfig,
+    pub api: ApiConfig,
+    pub database: DatabaseConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkConfig {
+    pub max_peers: u32,
+    pub port: u16,
+    pub bootstrap_nodes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsensusConfig {
+    pub min_validators: u32,
+    pub block_time_ms: u64,
+    pub max_block_size: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApiConfig {
+    pub rate_limit_per_minute: u32,
+    pub host: String,
+    pub port: u16,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DatabaseConfig {
+    pub url: String,
+    pub max_connections: u32,
+}
+
 impl Config {
     pub fn load(path: &str) -> Result<Self> {
         let content = fs::read_to_string(path)?;
