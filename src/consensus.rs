@@ -1,530 +1,325 @@
 use std::sync::Arc;
-use std::collections::{HashMap, VecDeque};
-use tokio::sync::Mutex;
+use std::collections::HashMap;
+use tokio::sync::{Mutex, RwLock};
 use serde::{Serialize, Deserialize};
-use sha3::{Keccak256, Digest};
-use crate::thermal::ThermalBalancer;
-use hex;
+use chrono::{DateTime, Utc};
+use anyhow::Result;
 
-// Tork Sistemi
-#[derive(Clone)]
-pub struct TorqueSystem {
-    pub base_torque: f64,
-    pub network_load: f64,
-    pub thermal_factor: f64,
-    pub efficiency: f64,
-    pub torque_pool: Arc<Mutex<TorquePool>>,
-    pub adaptive_threshold: Arc<Mutex<AdaptiveThreshold>>,
-    pub beta_angle: f64,
-}
+use crate::crypto::CryptoManager;
+use crate::state::ChainState;
 
-// Tork Havuzu
-#[derive(Clone)]
-pub struct TorquePool {
-    pub validators: HashMap<String, ValidatorTorque>,
-    pub total_torque: f64,
-    pub last_update: u64,
-}
-
-// Validator Tork Bilgisi
-#[derive(Clone, Serialize, Deserialize)]
-pub struct ValidatorTorque {
-    pub stake: f64,
-    pub efficiency: f64,
-    pub contributed_torque: f64,
-    pub last_contribution: u64,
-}
-
-// Adaptif Eşik
-#[derive(Clone)]
-pub struct AdaptiveThreshold {
-    pub base_threshold: f64,
-    pub current_threshold: f64,
-    pub load_history: VecDeque<f64>,
-    pub adjustment_factor: f64,
-}
-
-// Dişli Zinciri
-#[derive(Clone)]
-pub struct GearChain {
-    pub id: u32,
-    pub gears: Vec<Gear>,
-    pub current_torque: f64,
-    pub efficiency: f64,
-}
-
-// Dişli
-#[derive(Clone)]
-pub struct Gear {
-    pub radius: f64,
-    pub teeth_count: u32,
-    pub rotation_speed: f64,
-    pub torque: f64,
-    pub is_locked: bool,
-}
-
-// Tork Bazlı Gaz Ücreti (hTork)
-#[derive(Clone)]
-pub struct TorqueGas {
-    pub base_torque: f64,
-    pub network_load: f64,
-    pub thermal_factor: f64,
-    pub efficiency: f64,
-}
-
-// Ana Konsensüs Yapısı
-pub struct RotaryConsensus {
-    pub torque_system: Arc<Mutex<TorqueSystem>>,
-    pub gear_chains: Arc<Mutex<Vec<GearChain>>>,
-    pub validators: Arc<Mutex<Vec<Validator>>>,
-    pub thermal_balancer: Arc<Mutex<ThermalBalancer>>,
-    pub chain_manager: Arc<Mutex<ChainManager>>,
-    pub validator_set: Arc<Mutex<ValidatorSet>>,
-}
-
-// Validator
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Validator {
     pub address: String,
-    pub stake: f64,
+    pub stake: u64,
+    pub beta_angle: f64,
     pub efficiency: f64,
-    pub last_commit: u64,
-    pub metrics: ValidatorMetrics,
+    pub last_active: DateTime<Utc>,
+    pub is_active: bool,
 }
 
-// Zincir Yöneticisi
-pub struct ChainManager {
-    pub chains: Vec<GearChain>,
-    pub chain_loads: HashMap<u32, f64>,
-    pub chain_efficiencies: HashMap<u32, f64>,
-}
-
-// Validator Seçimi ve BFT için yeni yapılar
-#[derive(Clone, Serialize, Deserialize)]
-pub struct ValidatorSet {
-    pub validators: Vec<Validator>,
-    pub total_stake: f64,
-    pub min_stake: f64,
-    pub max_validators: u32,
-    pub current_epoch: u64,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct ValidatorMetrics {
-    pub uptime: f64,
-    pub performance: f64,
-    pub reliability: f64,
-    pub last_commit_time: u64,
-    pub missed_blocks: u32,
-}
-
-#[derive(Clone, Serialize, Deserialize)]
-pub struct BlockFinality {
-    pub block_hash: String,
-    pub validator_votes: HashMap<String, bool>,
-    pub required_votes: u32,
-    pub finality_threshold: f64,
-    pub status: FinalityStatus,
-}
-
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
-pub enum FinalityStatus {
-    Pending,
-    Finalized,
-    Rejected,
-}
-
-// Hata Tipleri
-#[derive(Debug)]
-pub enum ConsensusError {
-    InsufficientTorque,
-    GearLocked,
-    NoValidators,
-    InvalidGearChain,
-    InvalidSelfLock,
-    NoAvailableChains,
-    TorquePoolError(String),
-    ByzantineFault,
-    BlockNotFinalized,
-    InvalidSignature,
-    InvalidState,
-    InsufficientVotes,
-}
-
-impl TorqueSystem {
-    pub fn new() -> Self {
-        Self {
-            base_torque: 8.0, // 8 Nm temel tork
-            network_load: 1.0,
-            thermal_factor: 1.0,
-            efficiency: 0.92,
-            torque_pool: Arc::new(Mutex::new(TorquePool::new())),
-            adaptive_threshold: Arc::new(Mutex::new(AdaptiveThreshold::new())),
-            beta_angle: 40.0, // 40° helix açısı
-        }
-    }
-}
-
-impl TorquePool {
-    pub fn new() -> Self {
-        Self {
-            validators: HashMap::new(),
-            total_torque: 0.0,
-            last_update: 0,
-        }
-    }
-
-    pub async fn update_validator_torque(&mut self, address: &str, torque: f64) -> Result<(), ConsensusError> {
-        if let Some(validator) = self.validators.get_mut(address) {
-            validator.contributed_torque = torque;
-            validator.last_contribution = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            
-            self.total_torque = self.validators.values()
-                .map(|v| v.contributed_torque)
-                .sum();
-                
-            Ok(())
-        } else {
-            Err(ConsensusError::TorquePoolError("Validator not found".to_string()))
-        }
-    }
-}
-
-impl AdaptiveThreshold {
-    pub fn new() -> Self {
-        Self {
-            base_threshold: 8.0, // 8 Nm temel eşik
-            current_threshold: 8.0,
-            load_history: VecDeque::with_capacity(10),
-            adjustment_factor: 0.1,
-        }
-    }
-
-    pub async fn adjust(&mut self, current_torque: f64) -> Result<(), ConsensusError> {
-        let avg_load = if !self.load_history.is_empty() {
-            self.load_history.iter().sum::<f64>() / self.load_history.len() as f64
-        } else {
-            1.0
-        };
-
-        self.current_threshold = self.base_threshold * 
-            (1.0 + (avg_load - 1.0) * self.adjustment_factor);
-
-        self.load_history.push_back(current_torque);
-        if self.load_history.len() > 10 {
-            self.load_history.pop_front();
-        }
-
-        Ok(())
-    }
-}
-
-impl TorqueGas {
-    pub fn new() -> Self {
-        Self {
-            base_torque: 8.0,
-            network_load: 1.0,
-            thermal_factor: 1.0,
-            efficiency: 0.92,
-        }
-    }
-
-    pub fn calculate_gas(&self, tx_complexity: f64) -> f64 {
-        self.base_torque * 
-        tx_complexity / 
-        (self.network_load * self.thermal_factor * self.efficiency)
-    }
-
-    pub fn adjust_for_network_load(&mut self, load: f64) {
-        self.network_load = load;
-        self.base_torque *= (1.0 + (load - 1.0) * 0.1);
-    }
-
-    pub fn adjust_for_thermal(&mut self, temp: f64) {
-        self.thermal_factor = (1.0 - (temp - 40.0) * 0.01).max(0.5);
-        self.efficiency *= self.thermal_factor;
-    }
-}
-
-impl RotaryConsensus {
-    pub fn new() -> Self {
-        Self {
-            torque_system: Arc::new(Mutex::new(TorqueSystem::new())),
-            gear_chains: Arc::new(Mutex::new(Vec::new())),
-            validators: Arc::new(Mutex::new(Vec::new())),
-            thermal_balancer: Arc::new(Mutex::new(ThermalBalancer::new())),
-            chain_manager: Arc::new(Mutex::new(ChainManager::new())),
-            validator_set: Arc::new(Mutex::new(ValidatorSet::new(0.0, 0))),
-        }
-    }
-
-    pub async fn commit_block(&self, block: &Block) -> Result<(), ConsensusError> {
-        // 1. Tork Havuzu Güncelleme
-        let total_torque = self.update_torque_pool().await?;
-        
-        // 2. Adaptif Eşik Kontrolü
-        let threshold = self.check_adaptive_threshold(total_torque).await?;
-        
-        // 3. Dişli Optimizasyonu
-        self.optimize_gears().await?;
-        
-        // 4. Çoklu Zincir Yönetimi
-        let chain_id = self.select_chain_for_block(block).await?;
-        
-        // 5. Blok Commit
-        if total_torque >= threshold {
-            self.commit_block_to_chain(block, chain_id).await?;
-            Ok(())
-        } else {
-            Err(ConsensusError::InsufficientTorque)
-        }
-    }
-
-    async fn update_torque_pool(&self) -> Result<f64, ConsensusError> {
-        let torque_system = self.torque_system.lock().await;
-        let pool = torque_system.torque_pool.lock().await;
-        Ok(pool.total_torque)
-    }
-
-    async fn calculate_validator_torque(&self, validator: &Validator) -> f64 {
-        let torque_system = self.torque_system.lock().await;
-        let thermal_factor = self.thermal_balancer.lock().await.get_factor();
-        
-        validator.stake * 
-        (torque_system.beta_angle.to_radians().sin()) / 
-        torque_system.network_load * 
-        validator.efficiency * 
-        thermal_factor
-    }
-
-    async fn check_adaptive_threshold(&self, current_torque: f64) -> Result<f64, ConsensusError> {
-        let torque_system = self.torque_system.lock().await;
-        let mut threshold = torque_system.adaptive_threshold.lock().await;
-        threshold.adjust(current_torque).await?;
-        Ok(threshold.current_threshold)
-    }
-
-    async fn optimize_gears(&self) -> Result<(), ConsensusError> {
-        let mut gear_chains = self.gear_chains.lock().await;
-        
-        for chain in gear_chains.iter_mut() {
-            chain.optimize().await?;
-        }
-        
-        Ok(())
-    }
-
-    async fn select_chain_for_block(&self, block: &Block) -> Result<u32, ConsensusError> {
-        let chain_manager = self.chain_manager.lock().await;
-        chain_manager.select_chain(block).await
-    }
-
-    async fn commit_block_to_chain(&self, block: &Block, chain_id: u32) -> Result<(), ConsensusError> {
-        let _block = block;
-        let _chain_id = chain_id;
-        Ok(())
-    }
-
-    pub async fn validate_block(&self, block: &Block) -> Result<(), ConsensusError> {
-        // 1. Tork Doğrulama
-        let block_torque = self.calculate_block_torque(block).await;
-        let min_torque = self.get_minimum_torque().await;
-        if block_torque < min_torque {
-            return Err(ConsensusError::InsufficientTorque);
-        }
-
-        // 2. Validator Set Doğrulama
-        let selected_validators = {
-            let mut validators = self.validator_set.lock().await;
-            validators.select_validators().await
-        };
-        
-        // 3. BFT Doğrulama
-        let votes = self.collect_validator_votes(block, &selected_validators).await?;
-        if !self.verify_byzantine_tolerance(&votes).await {
-            return Err(ConsensusError::ByzantineFault);
-        }
-
-        // 4. Finality Kontrolü
-        let finality = self.check_block_finality(block, &votes).await?;
-        if finality.status != FinalityStatus::Finalized {
-            return Err(ConsensusError::BlockNotFinalized);
-        }
-
-        Ok(())
-    }
-
-    async fn calculate_block_torque(&self, block: &Block) -> f64 {
-        let mut total_torque = 0.0;
-        for tx in &block.transactions {
-            total_torque += self.calculate_transaction_torque(tx).await;
-        }
-        total_torque
-    }
-
-    async fn calculate_transaction_torque(&self, tx: &Transaction) -> f64 {
-        let torque_system = self.torque_system.lock().await;
-        tx.complexity * torque_system.base_torque
-    }
-
-    async fn collect_validator_votes(&self, block: &Block, validators: &[Validator]) 
-        -> Result<HashMap<String, bool>, ConsensusError> {
-        let mut votes = HashMap::new();
-        
-        for validator in validators {
-            let vote = self.get_validator_vote(validator, block).await?;
-            votes.insert(validator.address.clone(), vote);
-        }
-        
-        Ok(votes)
-    }
-
-    async fn verify_byzantine_tolerance(&self, votes: &HashMap<String, bool>) -> bool {
-        let total_votes = votes.len();
-        let positive_votes = votes.values().filter(|&&v| v).count();
-        
-        // 2/3 çoğunluk kontrolü
-        (positive_votes as f64 / total_votes as f64) >= 0.67
-    }
-
-    async fn check_block_finality(&self, block: &Block, votes: &HashMap<String, bool>) 
-        -> Result<BlockFinality, ConsensusError> {
-        let block_hash = self.calculate_block_hash(block);
-        let required_votes = (votes.len() as f64 * 0.67).ceil() as u32;
-        
-        let positive_votes = votes.values().filter(|&&v| v).count() as u32;
-        let status = if positive_votes >= required_votes {
-            FinalityStatus::Finalized
-        } else {
-            FinalityStatus::Pending
-        };
-        
-        Ok(BlockFinality {
-            block_hash,
-            validator_votes: votes.clone(),
-            required_votes,
-            finality_threshold: 0.67,
-            status,
-        })
-    }
-
-    async fn get_validator_vote(&self, validator: &Validator, block: &Block) -> Result<bool, ConsensusError> {
-        let vote = self.verify_block_signature(block, validator).await?;
-        Ok(vote)
-    }
-
-    async fn verify_block_signature(&self, block: &Block, validator: &Validator) -> Result<bool, ConsensusError> {
-        let _block = block;
-        let _validator = validator;
-        Ok(true)
-    }
-
-    async fn verify_block_state(&self, block: &Block) -> Result<bool, ConsensusError> {
-        let _block = block;
-        Ok(true)
-    }
-
-    async fn calculate_block_hash(&self, block: &Block) -> String {
-        let mut hasher = Keccak256::new();
-        hasher.update(block.id.to_le_bytes());
-        hasher.update(block.timestamp.to_le_bytes());
-        hex::encode(hasher.finalize())
-    }
-
-    async fn get_minimum_torque(&self) -> f64 {
-        let torque_system = self.torque_system.lock().await;
-        torque_system.base_torque
-    }
-}
-
-impl ChainManager {
-    pub fn new() -> Self {
-        Self {
-            chains: Vec::new(),
-            chain_loads: HashMap::new(),
-            chain_efficiencies: HashMap::new(),
-        }
-    }
-
-    pub async fn select_chain(&self, block: &Block) -> Result<u32, ConsensusError> {
-        let selected_chain = self.chains.iter()
-            .min_by_key(|chain| {
-                let load = self.chain_loads.get(&chain.id).unwrap_or(&0.0);
-                let efficiency = self.chain_efficiencies.get(&chain.id).unwrap_or(&1.0);
-                ((load * 1000.0) / efficiency) as i64
-            })
-            .ok_or(ConsensusError::NoAvailableChains)?;
-            
-        Ok(selected_chain.id)
-    }
-
-    pub async fn balance_chains(&mut self) {
-        let mut chain_loads = self.chain_loads.clone();
-        for (chain_id, load) in chain_loads.iter_mut() {
-            if *load > 1.0 {
-                self.redistribute_load(*chain_id, *load - 1.0).await;
-            }
-        }
-    }
-
-    async fn redistribute_load(&mut self, chain_id: u32, excess_load: f64) {
-        let _chain_id = chain_id;
-        let _excess_load = excess_load;
-        // Implementation here
-    }
-}
-
-impl GearChain {
-    pub async fn optimize(&mut self) -> Result<(), ConsensusError> {
-        // Dişli optimizasyon mantığı
-        Ok(())
-    }
-}
-
-impl ValidatorSet {
-    pub fn new(min_stake: f64, max_validators: u32) -> Self {
-        Self {
-            validators: Vec::new(),
-            total_stake: 0.0,
-            min_stake,
-            max_validators,
-            current_epoch: 0,
-        }
-    }
-
-    pub async fn select_validators(&mut self) -> Vec<Validator> {
-        // Stake bazlı validator seçimi
-        let mut candidates: Vec<_> = self.validators.clone();
-        candidates.sort_by(|a, b| b.stake.partial_cmp(&a.stake).unwrap());
-        
-        // En yüksek stake'e sahip validator'ları seç
-        candidates.into_iter()
-            .take(self.max_validators as usize)
-            .collect()
-    }
-
-    pub async fn update_validator_metrics(&mut self, address: &str, metrics: ValidatorMetrics) {
-        if let Some(validator) = self.validators.iter_mut().find(|v| v.address == address) {
-            validator.metrics = metrics;
-        }
-    }
-}
-
-// Test için Block yapısı
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Block {
-    pub id: u64,
-    pub timestamp: u64,
+    pub hash: String,
+    pub previous_hash: String,
+    pub height: u64,
+    pub timestamp: DateTime<Utc>,
     pub transactions: Vec<Transaction>,
+    pub validator: String,
+    pub signature: String,
+    pub merkle_root: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
+    pub hash: String,
     pub from: String,
     pub to: String,
-    pub amount: f64,
-    pub complexity: f64,
+    pub amount: u64,
+    pub gas_price: u64,
+    pub gas_limit: u64,
+    pub nonce: u64,
+    pub data: Vec<u8>,
+    pub signature: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsensusState {
+    pub current_height: u64,
+    pub last_block_hash: String,
+    pub pending_transactions: Vec<Transaction>,
+    pub active_validators: HashMap<String, Validator>,
+    pub current_round: u64,
+}
+
+pub struct ConsensusManager {
+    state: Arc<RwLock<ConsensusState>>,
+    chain_state: Arc<ChainState>,
+    crypto_manager: Arc<CryptoManager>,
+    validators: Arc<Mutex<HashMap<String, Validator>>>,
+}
+
+impl ConsensusManager {
+    pub fn new(chain_state: Arc<ChainState>, crypto_manager: Arc<CryptoManager>) -> Self {
+        let initial_state = ConsensusState {
+            current_height: 0,
+            last_block_hash: "genesis".to_string(),
+            pending_transactions: Vec::new(),
+            active_validators: HashMap::new(),
+            current_round: 0,
+        };
+
+        Self {
+            state: Arc::new(RwLock::new(initial_state)),
+            chain_state,
+            crypto_manager,
+            validators: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    pub async fn start(&self) -> Result<()> {
+        tracing::info!("Starting consensus manager");
+        // Initialize genesis validators if needed
+        self.initialize_genesis_validators().await?;
+        Ok(())
+    }
+
+    pub async fn stop(&self) -> Result<()> {
+        tracing::info!("Stopping consensus manager");
+        Ok(())
+    }
+
+    pub async fn add_validator(&self, validator: Validator) -> Result<()> {
+        // Validate minimum stake
+        if validator.stake < 1000 {
+            anyhow::bail!("Validator stake below minimum requirement");
+        }
+
+        // Validate beta angle is within acceptable range
+        if validator.beta_angle < 10.0 || validator.beta_angle > 80.0 {
+            anyhow::bail!("Invalid beta angle: must be between 10-80 degrees");
+        }
+
+        let mut validators = self.validators.lock().await;
+        validators.insert(validator.address.clone(), validator.clone());
+
+        let mut state = self.state.write().await;
+        state.active_validators.insert(validator.address.clone(), validator);
+
+        tracing::info!("Added validator: {}", validator.address);
+        Ok(())
+    }
+
+    pub async fn propose_block(&self, transactions: Vec<Transaction>) -> Result<Block> {
+        let state = self.state.read().await;
+
+        // Select proposer based on stake-weighted selection
+        let proposer = self.select_block_proposer(&state.active_validators).await?;
+
+        // Validate transactions
+        let valid_transactions = self.validate_transactions(transactions).await?;
+
+        // Calculate merkle root
+        let merkle_root = self.calculate_merkle_root(&valid_transactions)?;
+
+        // Create block
+        let block = Block {
+            hash: String::new(), // Will be calculated after creation
+            previous_hash: state.last_block_hash.clone(),
+            height: state.current_height + 1,
+            timestamp: Utc::now(),
+            transactions: valid_transactions,
+            validator: proposer.address.clone(),
+            signature: String::new(), // Will be signed after hash calculation
+            merkle_root,
+        };
+
+        // Calculate block hash
+        let block_hash = self.calculate_block_hash(&block)?;
+
+        // TODO: Sign block with proposer's private key
+        let mut signed_block = block;
+        signed_block.hash = block_hash;
+        // signed_block.signature = sign_block_hash(...);
+
+        Ok(signed_block)
+    }
+
+    pub async fn validate_block(&self, block: &Block) -> Result<bool> {
+        // Validate block structure
+        if block.transactions.is_empty() {
+            return Ok(false);
+        }
+
+        // Validate previous hash
+        let state = self.state.read().await;
+        if block.previous_hash != state.last_block_hash {
+            return Ok(false);
+        }
+
+        // Validate height
+        if block.height != state.current_height + 1 {
+            return Ok(false);
+        }
+
+        // Validate timestamp (not too far in future)
+        let now = Utc::now();
+        if block.timestamp > now + chrono::Duration::minutes(5) {
+            return Ok(false);
+        }
+
+        // Validate proposer is active validator
+        if !state.active_validators.contains_key(&block.validator) {
+            return Ok(false);
+        }
+
+        // Validate merkle root
+        let calculated_merkle = self.calculate_merkle_root(&block.transactions)?;
+        if block.merkle_root != calculated_merkle {
+            return Ok(false);
+        }
+
+        // Validate transactions
+        for tx in &block.transactions {
+            if !self.validate_transaction(tx).await? {
+                return Ok(false);
+            }
+        }
+
+        // TODO: Validate block signature
+
+        Ok(true)
+    }
+
+    pub async fn commit_block(&self, block: Block) -> Result<()> {
+        // Final validation
+        if !self.validate_block(&block).await? {
+            anyhow::bail!("Invalid block cannot be committed");
+        }
+
+        // Update chain state
+        self.chain_state.add_block(block.clone()).await?;
+
+        // Update consensus state
+        let mut state = self.state.write().await;
+        state.current_height = block.height;
+        state.last_block_hash = block.hash;
+        state.current_round += 1;
+
+        // Remove committed transactions from pending
+        let committed_hashes: std::collections::HashSet<_> = 
+            block.transactions.iter().map(|tx| &tx.hash).collect();
+        state.pending_transactions.retain(|tx| !committed_hashes.contains(&tx.hash));
+
+        tracing::info!("Committed block {} at height {}", block.hash, block.height);
+        Ok(())
+    }
+
+    async fn initialize_genesis_validators(&self) -> Result<()> {
+        // Add genesis validators with default parameters
+        let genesis_validators = vec![
+            Validator {
+                address: "genesis_validator_1".to_string(),
+                stake: 10000,
+                beta_angle: 40.0,
+                efficiency: 0.92,
+                last_active: Utc::now(),
+                is_active: true,
+            },
+        ];
+
+        for validator in genesis_validators {
+            self.add_validator(validator).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn select_block_proposer(&self, validators: &HashMap<String, Validator>) -> Result<&Validator> {
+        if validators.is_empty() {
+            anyhow::bail!("No active validators available");
+        }
+
+        // Simple stake-weighted random selection
+        // TODO: Implement proper weighted selection algorithm
+        let validator = validators.values().next().unwrap();
+        Ok(validator)
+    }
+
+    async fn validate_transactions(&self, transactions: Vec<Transaction>) -> Result<Vec<Transaction>> {
+        let mut valid_transactions = Vec::new();
+
+        for tx in transactions {
+            if self.validate_transaction(&tx).await? {
+                valid_transactions.push(tx);
+            }
+        }
+
+        Ok(valid_transactions)
+    }
+
+    async fn validate_transaction(&self, tx: &Transaction) -> Result<bool> {
+        // Basic validation
+        if tx.amount == 0 {
+            return Ok(false);
+        }
+
+        if tx.from == tx.to {
+            return Ok(false);
+        }
+
+        // Check sender has sufficient balance
+        let sender_balance = self.chain_state.get_account_balance(&tx.from).await?;
+        if sender_balance < tx.amount + (tx.gas_price * tx.gas_limit) {
+            return Ok(false);
+        }
+
+        // TODO: Validate signature
+        // TODO: Validate nonce
+
+        Ok(true)
+    }
+
+    fn calculate_merkle_root(&self, transactions: &[Transaction]) -> Result<String> {
+        if transactions.is_empty() {
+            return Ok("empty_tree".to_string());
+        }
+
+        // Simple implementation - should use proper Merkle tree
+        let mut hasher = sha3::Keccak256::new();
+        for tx in transactions {
+            hasher.update(tx.hash.as_bytes());
+        }
+
+        Ok(hex::encode(hasher.finalize()))
+    }
+
+    fn calculate_block_hash(&self, block: &Block) -> Result<String> {
+        use sha3::{Digest, Keccak256};
+
+        let mut hasher = Keccak256::new();
+        hasher.update(block.previous_hash.as_bytes());
+        hasher.update(&block.height.to_le_bytes());
+        hasher.update(block.timestamp.timestamp().to_le_bytes());
+        hasher.update(block.merkle_root.as_bytes());
+        hasher.update(block.validator.as_bytes());
+
+        Ok(hex::encode(hasher.finalize()))
+    }
+
+    pub async fn calculate_validator_torque(&self, validator: &Validator, network_load: f64) -> f64 {
+        if network_load <= 0.0 {
+            return 0.0;
+        }
+
+        let beta_rad = validator.beta_angle.to_radians();
+        let base_torque = (validator.stake as f64) * beta_rad.sin() / network_load;
+        base_torque * validator.efficiency
+    }
+
+    pub async fn is_self_lock_active(&self, cpu_temp: f64) -> bool {
+        // Self-lock is active if CPU temperature is below 80°C
+        cpu_temp < 80.0
+    }
 }

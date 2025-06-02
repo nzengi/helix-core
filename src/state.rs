@@ -1,232 +1,247 @@
-use std::collections::HashMap;
+
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::collections::HashMap;
+use tokio::sync::RwLock;
 use serde::{Serialize, Deserialize};
-use rusqlite::{Connection, params};
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+
+use crate::database::Database;
 use crate::consensus::{Block, Transaction};
-use crate::sharding::ShardId;
 
-#[derive(Clone, Debug)]
-pub struct State {
-    pub accounts: Arc<Mutex<HashMap<String, Account>>>,
-    pub shard_states: Arc<Mutex<HashMap<ShardId, ShardState>>>,
-    pub last_block: Arc<Mutex<Option<Block>>>,
-    pub db: Arc<Mutex<Connection>>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Account {
     pub address: String,
-    pub balance: f64,
+    pub balance: u64,
     pub nonce: u64,
-    pub shard_id: ShardId,
-    pub storage_root: String,
+    pub staked_amount: u64,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ShardState {
-    pub shard_id: ShardId,
-    pub last_block: Option<Block>,
-    pub accounts: HashMap<String, Account>,
-    pub storage: HashMap<String, Vec<u8>>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChainStatus {
+    pub current_height: u64,
+    pub total_transactions: u64,
+    pub total_accounts: u64,
+    pub total_supply: u64,
+    pub last_block_time: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Block {
-    pub id: u64,
-    pub hash: String,
-    pub parent_hash: String,
-    pub number: u64,
-    pub timestamp: u64,
-    pub state_root: String,
-    pub transactions: Vec<Transaction>,
+pub struct ChainState {
+    accounts: Arc<RwLock<HashMap<String, Account>>>,
+    blocks: Arc<RwLock<HashMap<String, Block>>>,
+    transactions: Arc<RwLock<HashMap<String, Transaction>>>,
+    database: Arc<Database>,
+    current_height: Arc<RwLock<u64>>,
 }
 
-impl State {
-    pub fn new() -> Result<Self, String> {
-        let db = Connection::open("helix.db")
-            .map_err(|e| e.to_string())?;
+impl ChainState {
+    pub async fn new(database: Arc<Database>) -> Result<Self> {
+        let state = Self {
+            accounts: Arc::new(RwLock::new(HashMap::new())),
+            blocks: Arc::new(RwLock::new(HashMap::new())),
+            transactions: Arc::new(RwLock::new(HashMap::new())),
+            database,
+            current_height: Arc::new(RwLock::new(0)),
+        };
+
+        // Load state from database
+        state.load_from_database().await?;
         
-        // Veritabanı tablolarını oluştur
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS accounts (
-                address TEXT PRIMARY KEY,
-                balance REAL NOT NULL,
-                nonce INTEGER NOT NULL,
-                shard_id INTEGER NOT NULL,
-                storage_root TEXT NOT NULL
-            )",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        db.execute(
-            "CREATE TABLE IF NOT EXISTS blocks (
-                hash TEXT PRIMARY KEY,
-                parent_hash TEXT NOT NULL,
-                number INTEGER NOT NULL,
-                timestamp INTEGER NOT NULL,
-                transactions TEXT NOT NULL,
-                state_root TEXT NOT NULL
-            )",
-            [],
-        ).map_err(|e| e.to_string())?;
-
-        Ok(Self {
-            db: Arc::new(Mutex::new(db)),
-            accounts: Arc::new(Mutex::new(HashMap::new())),
-            shard_states: Arc::new(Mutex::new(HashMap::new())),
-            last_block: Arc::new(Mutex::new(None)),
-        })
+        Ok(state)
     }
 
-    // Account işlemleri
-    pub async fn get_account(&self, address: &str) -> Result<Option<Account>, String> {
-        let accounts = self.accounts.lock().await;
+    pub async fn get_account_balance(&self, address: &str) -> Result<u64> {
+        let accounts = self.accounts.read().await;
+        Ok(accounts.get(address).map(|acc| acc.balance).unwrap_or(0))
+    }
+
+    pub async fn get_account(&self, address: &str) -> Result<Option<Account>> {
+        let accounts = self.accounts.read().await;
         Ok(accounts.get(address).cloned())
     }
 
-    pub async fn update_account(&self, account: Account) -> Result<(), String> {
-        let mut accounts = self.accounts.lock().await;
-        accounts.insert(account.address.clone(), account.clone());
-
-        // Veritabanına kaydet
-        let db = self.db.lock().await;
-        db.execute(
-            "INSERT OR REPLACE INTO accounts (address, balance, nonce, shard_id, storage_root)
-             VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![
-                account.address,
-                account.balance,
-                account.nonce,
-                account.shard_id,
-                account.storage_root
-            ],
-        ).map_err(|e| e.to_string())?;
-
-        Ok(())
-    }
-
-    // Block işlemleri
-    pub async fn get_block(&self, hash: &str) -> Result<Option<Block>, String> {
-        let db = self.db.lock().await;
-        let mut stmt = db.prepare(
-            "SELECT hash, parent_hash, number, timestamp, transactions, state_root
-             FROM blocks WHERE hash = ?1"
-        ).map_err(|e| e.to_string())?;
-
-        let block = stmt.query_row(params![hash], |row| {
-            Ok(Block {
-                hash: row.get(0)?,
-                parent_hash: row.get(1)?,
-                number: row.get(2)?,
-                timestamp: row.get(3)?,
-                transactions: serde_json::from_str(&row.get::<_, String>(4)?).unwrap(),
-                state_root: row.get(5)?,
-            })
-        }).optional().map_err(|e| e.to_string())?;
-
-        Ok(block)
-    }
-
-    pub async fn save_block(&self, block: Block) -> Result<(), String> {
-        let db = self.db.lock().await;
-        db.execute(
-            "INSERT INTO blocks (hash, parent_hash, number, timestamp, transactions, state_root)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                block.hash,
-                block.parent_hash,
-                block.number,
-                block.timestamp,
-                serde_json::to_string(&block.transactions).unwrap(),
-                block.state_root
-            ],
-        ).map_err(|e| e.to_string())?;
-
-        // Son bloğu güncelle
-        let mut last_block = self.last_block.lock().await;
-        *last_block = Some(block);
-
-        Ok(())
-    }
-
-    // Shard işlemleri
-    pub async fn get_shard_state(&self, shard_id: ShardId) -> Result<Option<ShardState>, String> {
-        let shard_states = self.shard_states.lock().await;
-        Ok(shard_states.get(&shard_id).cloned())
-    }
-
-    pub async fn update_shard_state(&self, state: ShardState) -> Result<(), String> {
-        let mut shard_states = self.shard_states.lock().await;
-        shard_states.insert(state.shard_id, state);
-        Ok(())
-    }
-
-    // State senkronizasyonu
-    pub async fn sync_state(&self, other_state: &State) -> Result<(), String> {
-        // Account senkronizasyonu
-        let other_accounts = other_state.accounts.lock().await;
-        let mut accounts = self.accounts.lock().await;
+    pub async fn update_account_balance(&self, address: &str, new_balance: u64) -> Result<()> {
+        let mut accounts = self.accounts.write().await;
         
-        for (address, account) in other_accounts.iter() {
-            accounts.insert(address.clone(), account.clone());
+        match accounts.get_mut(address) {
+            Some(account) => {
+                account.balance = new_balance;
+                account.updated_at = Utc::now();
+            }
+            None => {
+                let account = Account {
+                    address: address.to_string(),
+                    balance: new_balance,
+                    nonce: 0,
+                    staked_amount: 0,
+                    created_at: Utc::now(),
+                    updated_at: Utc::now(),
+                };
+                accounts.insert(address.to_string(), account);
+            }
         }
 
-        // Block senkronizasyonu
-        if let Some(block) = other_state.last_block.lock().await.as_ref() {
-            self.save_block(block.clone()).await?;
-        }
-
-        // Shard senkronizasyonu
-        let other_shards = other_state.shard_states.lock().await;
-        let mut shards = self.shard_states.lock().await;
+        // Persist to database
+        self.save_account_to_database(address).await?;
         
-        for (shard_id, state) in other_shards.iter() {
-            shards.insert(*shard_id, state.clone());
+        Ok(())
+    }
+
+    pub async fn transfer(&self, from: &str, to: &str, amount: u64) -> Result<()> {
+        if amount == 0 {
+            anyhow::bail!("Transfer amount must be greater than 0");
         }
+
+        let mut accounts = self.accounts.write().await;
+        
+        // Check sender balance
+        let sender = accounts.get(from).ok_or_else(|| anyhow::anyhow!("Sender account not found"))?;
+        if sender.balance < amount {
+            anyhow::bail!("Insufficient balance");
+        }
+
+        // Update sender
+        let mut sender = sender.clone();
+        sender.balance -= amount;
+        sender.updated_at = Utc::now();
+        accounts.insert(from.to_string(), sender);
+
+        // Update receiver
+        match accounts.get_mut(to) {
+            Some(receiver) => {
+                receiver.balance += amount;
+                receiver.updated_at = Utc::now();
+            }
+            None => {
+                let receiver = Account {
+                    address: to.to_string(),
+                    balance: amount,
+                    nonce: 0,
+                    staked_amount: 0,
+                    created_at: Utc::now(),
+                    updated_at: Utc::now(),
+                };
+                accounts.insert(to.to_string(), receiver);
+            }
+        }
+
+        // Persist changes
+        drop(accounts);
+        self.save_account_to_database(from).await?;
+        self.save_account_to_database(to).await?;
 
         Ok(())
     }
 
-    // Storage işlemleri
-    pub async fn get_storage(&self, shard_id: ShardId, key: &str) -> Result<Option<Vec<u8>>, String> {
-        let shard_states = self.shard_states.lock().await;
-        if let Some(state) = shard_states.get(&shard_id) {
-            Ok(state.storage.get(key).cloned())
-        } else {
-            Ok(None)
+    pub async fn add_block(&self, block: Block) -> Result<()> {
+        // Process all transactions in the block
+        for tx in &block.transactions {
+            self.process_transaction(tx).await?;
         }
+
+        // Store block
+        let mut blocks = self.blocks.write().await;
+        blocks.insert(block.hash.clone(), block.clone());
+
+        // Update current height
+        let mut height = self.current_height.write().await;
+        *height = block.height;
+
+        // Persist to database
+        self.save_block_to_database(&block).await?;
+
+        Ok(())
     }
 
-    pub async fn set_storage(&self, shard_id: ShardId, key: String, value: Vec<u8>) -> Result<(), String> {
-        let mut shard_states = self.shard_states.lock().await;
-        if let Some(state) = shard_states.get_mut(&shard_id) {
-            state.storage.insert(key, value);
+    pub async fn get_block(&self, hash: &str) -> Result<Option<Block>> {
+        let blocks = self.blocks.read().await;
+        Ok(blocks.get(hash).cloned())
+    }
+
+    pub async fn get_transaction(&self, hash: &str) -> Result<Option<Transaction>> {
+        let transactions = self.transactions.read().await;
+        Ok(transactions.get(hash).cloned())
+    }
+
+    pub async fn get_status(&self) -> Result<ChainStatus> {
+        let height = *self.current_height.read().await;
+        let accounts = self.accounts.read().await;
+        let transactions = self.transactions.read().await;
+        
+        let total_supply = accounts.values().map(|acc| acc.balance).sum();
+        let last_block_time = Utc::now(); // TODO: Get from last block
+
+        Ok(ChainStatus {
+            current_height: height,
+            total_transactions: transactions.len() as u64,
+            total_accounts: accounts.len() as u64,
+            total_supply,
+            last_block_time,
+        })
+    }
+
+    async fn process_transaction(&self, tx: &Transaction) -> Result<()> {
+        // Transfer funds
+        self.transfer(&tx.from, &tx.to, tx.amount).await?;
+
+        // Update nonce
+        let mut accounts = self.accounts.write().await;
+        if let Some(account) = accounts.get_mut(&tx.from) {
+            account.nonce += 1;
         }
+
+        // Store transaction
+        drop(accounts);
+        let mut transactions = self.transactions.write().await;
+        transactions.insert(tx.hash.clone(), tx.clone());
+
+        // Persist transaction
+        self.save_transaction_to_database(tx).await?;
+
+        Ok(())
+    }
+
+    async fn load_from_database(&self) -> Result<()> {
+        // TODO: Implement database loading
+        tracing::info!("Loading state from database...");
+        Ok(())
+    }
+
+    async fn save_account_to_database(&self, address: &str) -> Result<()> {
+        // TODO: Implement database persistence
+        tracing::debug!("Saving account {} to database", address);
+        Ok(())
+    }
+
+    async fn save_block_to_database(&self, block: &Block) -> Result<()> {
+        // TODO: Implement database persistence  
+        tracing::debug!("Saving block {} to database", block.hash);
+        Ok(())
+    }
+
+    async fn save_transaction_to_database(&self, tx: &Transaction) -> Result<()> {
+        // TODO: Implement database persistence
+        tracing::debug!("Saving transaction {} to database", tx.hash);
         Ok(())
     }
 }
 
-// State hata yönetimi
-#[derive(Debug)]
-pub enum StateError {
-    DatabaseError(String),
-    AccountNotFound,
-    InvalidBlock,
-    ShardNotFound,
-    StorageError,
-}
-
-impl std::fmt::Display for StateError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            StateError::DatabaseError(e) => write!(f, "Database error: {}", e),
-            StateError::AccountNotFound => write!(f, "Account not found"),
-            StateError::InvalidBlock => write!(f, "Invalid block"),
-            StateError::ShardNotFound => write!(f, "Shard not found"),
-            StateError::StorageError => write!(f, "Storage error"),
+impl Account {
+    pub fn new() -> Self {
+        Self {
+            address: String::new(),
+            balance: 0,
+            nonce: 0,
+            staked_amount: 0,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
         }
     }
-}
 
-impl std::error::Error for StateError {} 
+    pub fn calculate_torque(&self) -> f64 {
+        // Simplified torque calculation based on stake
+        self.staked_amount as f64 * 0.1
+    }
+}

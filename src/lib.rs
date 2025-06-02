@@ -1,114 +1,104 @@
+
 pub mod address;
-pub mod consensus;
-pub mod security;
-pub mod sharding;
-pub mod gas;
-pub mod thermal;
+pub mod api;
 pub mod compression;
-pub mod wallet;
-pub mod state;
-pub mod genesis;
-pub mod network;
+pub mod config;
+pub mod consensus;
+pub mod crypto;
 pub mod database;
+pub mod delegation;
+pub mod gas;
+pub mod genesis;
+pub mod governance;
+pub mod logging;
+pub mod metrics;
+pub mod network;
+pub mod network_manager;
+pub mod oracle;
+pub mod privacy;
+pub mod security;
+pub mod security_audit;
+pub mod sharding;
+pub mod smart_contract;
+pub mod state;
+pub mod storage;
+pub mod thermal;
+pub mod token;
+pub mod wallet;
 
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::consensus::{RotaryConsensus, TorqueSystem, TorqueGas};
-use crate::thermal::ThermalBalancer;
-use crate::sharding::ShardRouter;
-use crate::gas::GasCalculator;
-use crate::compression::HelixCompression;
-use crate::state::State as ChainState;
-use crate::genesis::{GenesisBlock, GenesisState};
-use crate::network::{NetworkState, NodeInfo, PeerInfo};
+use anyhow::Result;
+
+use crate::config::Config;
+use crate::consensus::ConsensusManager;
+use crate::crypto::CryptoManager;
 use crate::database::Database;
-use crate::address::HelixWallet;
+use crate::network_manager::NetworkManager;
+use crate::security_audit::SecurityAuditManager;
+use crate::state::ChainState;
+use crate::wallet::HelixWallet;
 
 pub struct HelixNode {
-    pub wallet: Arc<Mutex<HelixWallet>>,
-    pub consensus: Arc<Mutex<RotaryConsensus>>,
-    pub shard_router: Arc<Mutex<ShardRouter>>,
-    pub gas_calculator: Arc<Mutex<TorqueGas>>,
-    pub compression: Arc<Mutex<HelixCompression>>,
-    pub chain_state: ChainState,
-    pub genesis_state: Arc<Mutex<GenesisState>>,
-    pub network_state: NetworkState,
+    pub config: Config,
+    pub crypto_manager: Arc<CryptoManager>,
+    pub consensus_manager: Arc<Mutex<ConsensusManager>>,
+    pub chain_state: Arc<ChainState>,
+    pub network_manager: Arc<NetworkManager>,
+    pub security_audit: Arc<SecurityAuditManager>,
     pub database: Arc<Database>,
-    pub thermal_balancer: Arc<Mutex<ThermalBalancer>>,
+    pub wallet: Arc<Mutex<HelixWallet>>,
 }
 
 impl HelixNode {
-    pub async fn new(_port: u16, seed: &str, _bootstrap_node: Option<&str>) -> Result<Self, String> {
-        // Initialize wallet
-        let wallet = Arc::new(Mutex::new(HelixWallet::new(seed)));
-        
-        // Initialize consensus
-        let consensus = Arc::new(Mutex::new(RotaryConsensus::new()));
-        
-        // Initialize shard router
-        let shard_router = Arc::new(Mutex::new(ShardRouter::new()));
-        
-        // Initialize gas calculator
-        let gas_calculator = Arc::new(Mutex::new(TorqueGas::new()));
-        
-        // Initialize compression
-        let compression = Arc::new(Mutex::new(HelixCompression::new()));
-        
-        // Initialize chain state
-        let chain_state = ChainState::new();
-        
-        // Initialize genesis state
-        let genesis_block = GenesisBlock::new(wallet.lock().await.generate_address());
-        let genesis_state = Arc::new(Mutex::new(GenesisState::new(&genesis_block)));
-        
-        // Initialize network state
-        let network_state = NetworkState::new();
-        
-        // Initialize database
-        let database = Arc::new(Database::new().await.map_err(|e| e.to_string())?);
-        
-        // Initialize thermal balancer
-        let thermal_balancer = Arc::new(Mutex::new(ThermalBalancer::new()));
-        
+    pub async fn new(config: Config) -> Result<Self> {
+        let crypto_manager = Arc::new(CryptoManager::new());
+        let database = Arc::new(Database::new(&config.database).await?);
+        let chain_state = Arc::new(ChainState::new(database.clone()).await?);
+        let security_audit = Arc::new(SecurityAuditManager::new());
+        let network_manager = Arc::new(NetworkManager::new(config.network.clone()).await?);
+        let consensus_manager = Arc::new(Mutex::new(ConsensusManager::new(
+            chain_state.clone(),
+            crypto_manager.clone(),
+        )));
+        let wallet = Arc::new(Mutex::new(HelixWallet::new(&config.wallet.seed)?));
+
         Ok(Self {
-            wallet,
-            consensus,
-            shard_router,
-            gas_calculator,
-            compression,
+            config,
+            crypto_manager,
+            consensus_manager,
             chain_state,
-            genesis_state,
-            network_state,
+            network_manager,
+            security_audit,
             database,
-            thermal_balancer,
+            wallet,
         })
     }
-    
-    pub async fn connect_to_node(&self, host: &str, port: u16, wallet_address: &str) {
-        let node_info = NodeInfo {
-            address: host.to_string(),
-            port,
-            version: "1.0.0".to_string(),
-            capabilities: std::collections::HashSet::new(),
-            last_sync: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-        };
+
+    pub async fn start(&self) -> Result<()> {
+        tracing::info!("Starting HelixNode");
         
-        let peer_info = PeerInfo {
-            address: host.to_string(),
-            port,
-            last_seen: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-            latency: 0,
-            version: "1.0.0".to_string(),
-            capabilities: std::collections::HashSet::new(),
-            failed_attempts: 0,
-        };
+        // Start network manager
+        self.network_manager.start().await?;
         
-        self.network_state.add_peer(peer_info).await;
+        // Start consensus
+        let consensus = self.consensus_manager.lock().await;
+        consensus.start().await?;
+        
+        tracing::info!("HelixNode started successfully");
+        Ok(())
+    }
+
+    pub async fn stop(&self) -> Result<()> {
+        tracing::info!("Stopping HelixNode");
+        
+        // Stop services in reverse order
+        let consensus = self.consensus_manager.lock().await;
+        consensus.stop().await?;
+        
+        self.network_manager.stop().await?;
+        
+        tracing::info!("HelixNode stopped successfully");
+        Ok(())
     }
 }

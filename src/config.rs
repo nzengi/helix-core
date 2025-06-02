@@ -1,160 +1,123 @@
-use std::path::PathBuf;
-use serde::{Serialize, Deserialize};
-use config::{Config, ConfigError, File, Environment};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use anyhow::Result;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct NodeConfig {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Config {
     pub network: NetworkConfig,
     pub consensus: ConsensusConfig,
-    pub sharding: ShardingConfig,
     pub database: DatabaseConfig,
     pub api: ApiConfig,
-    pub logging: LoggingConfig,
+    pub security: SecurityConfig,
+    pub wallet: WalletConfig,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkConfig {
-    pub host: String,
-    pub port: u16,
+    pub listen_addr: String,
+    pub listen_port: u16,
+    pub max_peers: usize,
     pub bootstrap_nodes: Vec<String>,
-    pub max_peers: u32,
-    pub peer_timeout: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusConfig {
-    pub validator_address: String,
-    pub min_validators: u32,
-    pub block_time: u64,
-    pub max_block_size: u32,
-    pub gas_limit: u64,
+    pub min_validators: usize,
+    pub block_time_ms: u64,
+    pub max_block_size: usize,
+    pub min_stake: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ShardingConfig {
-    pub total_shards: u32,
-    pub shard_size: u32,
-    pub cross_shard_timeout: u64,
-    pub shard_sync_interval: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DatabaseConfig {
-    pub path: String,
+    pub url: String,
     pub max_connections: u32,
-    pub cache_size: u64,
+    pub timeout_seconds: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiConfig {
-    pub enabled: bool,
-    pub host: String,
     pub port: u16,
-    pub cors_origins: Vec<String>,
-    pub rate_limit: u32,
+    pub rate_limit_per_minute: u32,
+    pub max_request_size: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LoggingConfig {
-    pub level: String,
-    pub file: Option<String>,
-    pub max_size: u64,
-    pub max_files: u32,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityConfig {
+    pub enable_audit: bool,
+    pub max_failed_attempts: u32,
+    pub blacklist_duration_hours: u64,
 }
 
-impl NodeConfig {
-    pub fn new() -> Result<Self, ConfigError> {
-        let config_path = std::env::var("HELIX_CONFIG")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from("config/default.toml"));
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WalletConfig {
+    pub seed: String,
+    pub derivation_path: String,
+}
 
-        let config = Config::builder()
-            // Varsayılan değerler
-            .add_source(File::from_str(
-                include_str!("../config/default.toml"),
-                config::FileFormat::Toml,
-            ))
-            // Konfigürasyon dosyası
-            .add_source(File::from(config_path))
-            // Ortam değişkenleri
-            .add_source(Environment::with_prefix("HELIX"))
-            .build()?;
-
-        config.try_deserialize()
+impl Config {
+    pub fn load(path: &str) -> Result<Self> {
+        let content = fs::read_to_string(path)?;
+        let config: Config = toml::from_str(&content)?;
+        config.validate()?;
+        Ok(config)
     }
 
-    pub fn save(&self, path: &str) -> Result<(), ConfigError> {
-        let config_str = toml::to_string_pretty(self)
-            .map_err(|e| ConfigError::Message(e.to_string()))?;
-        
-        std::fs::write(path, config_str)
-            .map_err(|e| ConfigError::Message(e.to_string()))?;
-        
+    fn validate(&self) -> Result<()> {
+        if self.network.max_peers == 0 {
+            anyhow::bail!("max_peers must be greater than 0");
+        }
+
+        if self.consensus.min_validators == 0 {
+            anyhow::bail!("min_validators must be greater than 0");
+        }
+
+        if self.consensus.block_time_ms < 1000 {
+            anyhow::bail!("block_time_ms must be at least 1000ms");
+        }
+
+        if self.api.rate_limit_per_minute == 0 {
+            anyhow::bail!("rate_limit_per_minute must be greater than 0");
+        }
+
         Ok(())
     }
 }
 
-impl Default for NodeConfig {
+impl Default for Config {
     fn default() -> Self {
         Self {
             network: NetworkConfig {
-                host: "0.0.0.0".to_string(),
-                port: 8000,
+                listen_addr: "0.0.0.0".to_string(),
+                listen_port: 8080,
+                max_peers: 50,
                 bootstrap_nodes: vec![],
-                max_peers: 100,
-                peer_timeout: 30,
             },
             consensus: ConsensusConfig {
-                validator_address: String::new(),
-                min_validators: 4,
-                block_time: 2,
-                max_block_size: 1000000,
-                gas_limit: 1000000,
-            },
-            sharding: ShardingConfig {
-                total_shards: 16,
-                shard_size: 1000,
-                cross_shard_timeout: 60,
-                shard_sync_interval: 10,
+                min_validators: 3,
+                block_time_ms: 2000,
+                max_block_size: 1024 * 1024, // 1MB
+                min_stake: 1000,
             },
             database: DatabaseConfig {
-                path: "helix.db".to_string(),
+                url: "postgres://localhost/helix".to_string(),
                 max_connections: 10,
-                cache_size: 1000000,
+                timeout_seconds: 30,
             },
             api: ApiConfig {
-                enabled: true,
-                host: "127.0.0.1".to_string(),
-                port: 8080,
-                cors_origins: vec!["*".to_string()],
-                rate_limit: 100,
+                port: 5000,
+                rate_limit_per_minute: 100,
+                max_request_size: 1024 * 1024, // 1MB
             },
-            logging: LoggingConfig {
-                level: "info".to_string(),
-                file: Some("helix.log".to_string()),
-                max_size: 10000000,
-                max_files: 5,
+            security: SecurityConfig {
+                enable_audit: true,
+                max_failed_attempts: 5,
+                blacklist_duration_hours: 24,
+            },
+            wallet: WalletConfig {
+                seed: "test_seed_do_not_use_in_production".to_string(),
+                derivation_path: "m/44'/60'/0'/0/0".to_string(),
             },
         }
     }
 }
-
-// Configuration hata yönetimi
-#[derive(Debug)]
-pub enum ConfigError {
-    FileError(String),
-    ParseError(String),
-    ValidationError(String),
-}
-
-impl std::fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ConfigError::FileError(e) => write!(f, "File error: {}", e),
-            ConfigError::ParseError(e) => write!(f, "Parse error: {}", e),
-            ConfigError::ValidationError(e) => write!(f, "Validation error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for ConfigError {} 
