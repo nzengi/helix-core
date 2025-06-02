@@ -11,8 +11,8 @@ use serde::{Serialize, Deserialize};
 use anyhow::Result;
 
 use crate::HelixNode;
-use crate::consensus::{Block, Transaction, Validator};
-use crate::state::{Account, ChainStatus};
+use crate::consensus::{Transaction, Validator};
+use crate::state::{Account, ChainStatus, Block};
 
 #[derive(Clone)]
 pub struct ApiState {
@@ -100,8 +100,8 @@ async fn get_node_status(State(state): State<ApiState>) -> impl IntoResponse {
 }
 
 async fn get_blocks(
-    State(state): State<ApiState>,
-    Query(pagination): Query<PaginationQuery>,
+    State(_state): State<ApiState>,
+    Query(_pagination): Query<PaginationQuery>,
 ) -> impl IntoResponse {
     // TODO: Implement pagination logic
     Json(ApiResponse::success(Vec::<Block>::new()))
@@ -122,8 +122,8 @@ async fn get_block(
 }
 
 async fn get_transactions(
-    State(state): State<ApiState>,
-    Query(pagination): Query<PaginationQuery>,
+    State(_state): State<ApiState>,
+    Query(_pagination): Query<PaginationQuery>,
 ) -> impl IntoResponse {
     // TODO: Implement pagination logic
     Json(ApiResponse::success(Vec::<Transaction>::new()))

@@ -291,8 +291,30 @@ impl RotaryBFT {
     async fn get_latest_block(&self) -> Result<Block> {
         let status = self.chain_state.get_status().await?;
 
-        if let Some(block) = self.chain_state.get_block(&status.best_block_hash).await? {
-            Ok(block)
+        if let Some(state_block) = self.chain_state.get_block(&status.best_block_hash).await? {
+            // Convert state::Block to consensus::Block
+            Ok(Block {
+                hash: state_block.hash,
+                previous_hash: state_block.previous_hash,
+                height: state_block.index,
+                timestamp: chrono::DateTime::from_timestamp(state_block.timestamp as i64, 0).unwrap_or_else(|| Utc::now()),
+                transactions: state_block.transactions.iter().map(|tx| Transaction {
+                    hash: tx.hash.clone(),
+                    from: tx.from.clone(),
+                    to: tx.to.clone(),
+                    amount: tx.amount,
+                    gas_price: tx.gas_price,
+                    gas_limit: tx.gas_limit,
+                    nonce: tx.nonce,
+                    data: tx.data.clone(),
+                    signature: tx.signature.clone(),
+                    timestamp: chrono::DateTime::from_timestamp(tx.timestamp as i64, 0).unwrap_or_else(|| Utc::now()),
+                }).collect(),
+                validator: state_block.validator,
+                signature: state_block.signatures.join(","),
+                merkle_root: state_block.merkle_root,
+                torque: 0.0,
+            })
         } else {
             // Return genesis block
             Ok(Block {

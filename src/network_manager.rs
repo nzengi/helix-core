@@ -26,6 +26,7 @@ pub enum NetworkMessage {
     Pong,
 }
 
+#[derive(Clone, Debug)]
 pub struct NetworkManager {
     config: Config,
     peers: Arc<RwLock<HashMap<String, Peer>>>,
@@ -169,7 +170,7 @@ impl NetworkManager {
         Ok(())
     }
 
-    pub async fn get_peer_count(&self) -> usize {
+    pub async fnget_peer_count(&self) -> usize {
         self.peers.lock().await.len()
     }
 

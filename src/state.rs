@@ -64,6 +64,7 @@ pub struct Block {
     pub transactions: Vec<Transaction>,
     pub hash: String,
     pub signatures: Vec<String>,
+    pub validator: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
@@ -90,6 +91,7 @@ pub struct ChainState {
     validator_set: Arc<Mutex<Vec<String>>>,
     current_height: Arc<Mutex<u64>>,
     total_supply: Arc<Mutex<u64>>,
+    transaction_count: Arc<Mutex<u64>>,
 }
 
 const INITIAL_SUPPLY: u64 = 1_000_000_000;
@@ -103,6 +105,7 @@ impl ChainState {
             validator_set: Arc::new(Mutex::new(Vec::new())),
             current_height: Arc::new(Mutex::new(0)),
             total_supply: Arc::new(Mutex::new(INITIAL_SUPPLY)),
+            transaction_count: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -159,6 +162,7 @@ impl ChainState {
             transactions: block.transactions.clone(),
             merkle_root: block.merkle_root.clone(),
             signatures: block.signatures.clone(),
+            validator: block.validator.clone(),
         };
         blocks.push(state_block);
 
@@ -175,7 +179,7 @@ impl ChainState {
             return Err(StateError::InvalidTransaction("Zero amount transaction".to_string()));
         }
 
-        let mut accounts = self.accounts.write().await;
+        let mut accounts = self.accounts.lock().await;
 
         // Check if from account exists
         let from_account = accounts.get_mut(&transaction.from)
@@ -204,14 +208,14 @@ impl ChainState {
         to_account.balance += transaction.amount;
 
         // Update transaction count
-        let mut tx_count = self.transaction_count.write().await;
+        let mut tx_count = self.transaction_count.lock().await;
         *tx_count += 1;
 
         Ok(())
     }
 
     pub async fn validate_transaction(&self, transaction: &Transaction) -> Result<bool, StateError> {
-        let accounts = self.accounts.read().await;
+        let accounts = self.accounts.lock().await;
 
         // Check if from account exists
         let from_account = accounts.get(&transaction.from)
@@ -255,7 +259,7 @@ impl ChainState {
     }
 
     pub async fn create_account(&self, address: String) -> Result<(), StateError> {
-        let mut accounts = self.accounts.write().await;
+        let mut accounts = self.accounts.lock().await;
         if accounts.contains_key(&address) {
             return Err(StateError::AccountAlreadyExists);
         }
@@ -267,7 +271,7 @@ impl ChainState {
     }
 
     pub async fn set_balance(&self, address: &str, balance: u64) -> Result<(), StateError> {
-        let mut accounts = self.accounts.write().await;
+        let mut accounts = self.accounts.lock().await;
         let account = accounts.get_mut(address)
             .ok_or(StateError::AccountNotFound)?;
 
