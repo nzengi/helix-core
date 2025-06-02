@@ -53,10 +53,35 @@ pub struct ConsensusState {
     pub current_round: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkStatus {
+    pub network_load: f64,
+    pub total_stake: u64,
+    pub active_validators: usize,
+    pub total_validators: usize,
+    pub current_height: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsensusVote {
+    pub validator_address: String,
+    pub block_hash: String,
+    pub vote_type: VoteType,
+    pub signature: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum VoteType {
+    Prevote,
+    Precommit,
+    Commit,
+}
+
 impl ConsensusState {
     pub fn new(
-        _chain_state: Arc<ChainState>,
-        _crypto: Arc<Mutex<CryptoManager>>,
+        chain_state: Arc<ChainState>,
+        crypto: Arc<Mutex<CryptoManager>>,
     ) -> Self {
         Self {
             current_height: 0,
@@ -67,14 +92,52 @@ impl ConsensusState {
         }
     }
 
-    pub async fn start(&self) -> Result<()> {
-        // Start consensus process
+    pub async fn start(&mut self) -> Result<()> {
+        // Initialize with current chain state
+        // This would start the consensus process
+        tracing::info!("Starting consensus state at height {}", self.current_height);
         Ok(())
     }
 
-    pub async fn stop(&self) -> Result<()> {
-        // Stop consensus process
+    pub async fn stop(&mut self) -> Result<()> {
+        // Stop consensus process gracefully
+        tracing::info!("Stopping consensus state at height {}", self.current_height);
+        self.pending_transactions.clear();
         Ok(())
+    }
+
+    pub fn add_transaction(&mut self, transaction: Transaction) {
+        self.pending_transactions.push(transaction);
+    }
+
+    pub fn remove_transaction(&mut self, tx_hash: &str) -> Option<Transaction> {
+        if let Some(pos) = self.pending_transactions.iter().position(|tx| tx.hash == tx_hash) {
+            Some(self.pending_transactions.remove(pos))
+        } else {
+            None
+        }
+    }
+
+    pub fn update_height(&mut self, height: u64, block_hash: String) {
+        self.current_height = height;
+        self.last_block_hash = block_hash;
+        self.current_round = 0; // Reset round for new height
+    }
+
+    pub fn add_validator(&mut self, validator: Validator) {
+        self.active_validators.insert(validator.address.clone(), validator);
+    }
+
+    pub fn remove_validator(&mut self, address: &str) {
+        self.active_validators.remove(address);
+    }
+
+    pub fn get_validator(&self, address: &str) -> Option<&Validator> {
+        self.active_validators.get(address)
+    }
+
+    pub fn increment_round(&mut self) {
+        self.current_round += 1;
     }
 }
 
@@ -157,11 +220,20 @@ impl RotaryBFT {
         };
 
         // Calculate block hash
-        let block_data = serde_json::to_string(&block)?;
-        block.hash = crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes());
+        let mut temp_block = block.clone();
+        temp_block.hash = String::new();
+        temp_block.signature = String::new();
+        
+        let block_data = serde_json::to_string(&temp_block)?;
+        let calculated_hash = crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes());
 
-        let mut final_block = block;
-        final_block.hash = block.hash;
+        // Sign the block
+        let crypto = self.crypto.lock().await;
+        let signature = crypto.sign_data(block_data.as_bytes())?;
+
+        let mut final_block = temp_block;
+        final_block.hash = calculated_hash;
+        final_block.signature = signature;
 
         Ok(final_block)
     }
@@ -266,9 +338,19 @@ impl RotaryBFT {
             let network_load = self.calculate_network_load().await;
             let required_torque = validator.calculate_torque(network_load);
             if block.torque < required_torque || required_torque < self.min_torque_threshold {
+                tracing::warn!("Block torque {} below threshold {}", block.torque, self.min_torque_threshold);
                 return Ok(false);
             }
         } else {
+            tracing::error!("Unknown validator {} for block", block.validator);
+            return Ok(false);
+        }
+
+        // Validate timestamp (not too far in future or past)
+        let now = Utc::now();
+        let time_diff = (now.timestamp() - block.timestamp.timestamp()).abs();
+        if time_diff > 300 { // 5 minutes tolerance
+            tracing::warn!("Block timestamp too far from current time: {} seconds", time_diff);
             return Ok(false);
         }
 
@@ -331,6 +413,39 @@ impl RotaryBFT {
         }
     }
 
+    pub async fn start_consensus(&self) -> Result<()> {
+        tracing::info!("Starting RotaryBFT consensus engine");
+        
+        // Initialize genesis validators if none exist
+        let validators = self.validators.read().await;
+        if validators.is_empty() {
+            drop(validators);
+            self.initialize_genesis_validators().await?;
+        }
+        
+        Ok(())
+    }
+
+    pub async fn stop_consensus(&self) -> Result<()> {
+        tracing::info!("Stopping RotaryBFT consensus engine");
+        Ok(())
+    }
+
+    pub async fn is_validator_active(&self, address: &str) -> bool {
+        let validators = self.validators.read().await;
+        validators.get(address).map(|v| v.is_active).unwrap_or(false)
+    }
+
+    pub async fn get_validator_count(&self) -> usize {
+        let validators = self.validators.read().await;
+        validators.len()
+    }
+
+    pub async fn get_active_validator_count(&self) -> usize {
+        let validators = self.validators.read().await;
+        validators.values().filter(|v| v.is_active).count()
+    }
+
     pub async fn initialize_genesis_validators(&self) -> Result<()> {
         let genesis_validators = vec![
             Validator {
@@ -369,6 +484,78 @@ impl RotaryBFT {
     pub async fn get_validators(&self) -> Result<Vec<Validator>> {
         let validators = self.validators.read().await;
         Ok(validators.values().cloned().collect())
+    }
+
+    pub async fn get_pending_transactions(&self) -> Result<Vec<Transaction>> {
+        self.chain_state.get_pending_transactions().await
+    }
+
+    pub async fn add_transaction(&self, transaction: Transaction) -> Result<()> {
+        // Validate transaction first
+        if !self.chain_state.validate_transaction(&transaction).await? {
+            anyhow::bail!("Transaction validation failed");
+        }
+        
+        // Add to pending transactions
+        self.chain_state.add_pending_transaction(transaction).await
+    }
+
+    pub async fn get_validator(&self, address: &str) -> Option<Validator> {
+        let validators = self.validators.read().await;
+        validators.get(address).cloned()
+    }
+
+    pub async fn remove_validator(&self, address: &str) -> Result<()> {
+        let mut validators = self.validators.write().await;
+        validators.remove(address);
+        Ok(())
+    }
+
+    pub async fn update_validator(&self, validator: Validator) -> Result<()> {
+        if !validator.validate_self_lock() {
+            anyhow::bail!("Validator fails self-lock validation");
+        }
+
+        let mut validators = self.validators.write().await;
+        validators.insert(validator.address.clone(), validator);
+        Ok(())
+    }
+
+    pub async fn get_network_status(&self) -> Result<NetworkStatus> {
+        let validators = self.validators.read().await;
+        let network_load = self.calculate_network_load().await;
+        let total_stake: u64 = validators.values().map(|v| v.stake).sum();
+        let active_validators = validators.values().filter(|v| v.is_active).count();
+
+        Ok(NetworkStatus {
+            network_load,
+            total_stake,
+            active_validators,
+            total_validators: validators.len(),
+            current_height: self.chain_state.get_status().await?.height,
+        })
+    }
+
+    pub async fn process_vote(&self, vote: ConsensusVote) -> Result<()> {
+        // Validate vote
+        let validators = self.validators.read().await;
+        let validator = validators.get(&vote.validator_address)
+            .ok_or_else(|| anyhow::anyhow!("Unknown validator"))?;
+
+        let network_load = self.calculate_network_load().await;
+        if !validator.can_vote(network_load) {
+            anyhow::bail!("Validator cannot vote with current torque");
+        }
+
+        // Process the vote (simplified implementation)
+        // In a real implementation, this would handle vote aggregation
+        Ok(())
+    }
+
+    pub async fn finalize_block(&self, block: &Block) -> Result<()> {
+        // Add any finalization logic here
+        // For now, just ensure the block is added to the chain
+        self.chain_state.add_block(block).await
     }
 }
 
