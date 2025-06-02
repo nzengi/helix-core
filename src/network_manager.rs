@@ -373,7 +373,6 @@ impl MessageHandler for BlockchainMessageHandler {
                 
                 if self.chain_state.validate_transaction(&state_tx).await.unwrap_or(false) {
                     self.chain_state.add_pending_transaction(state_tx).await.unwrap_or(());
-                }
                     tracing::info!("📝 Added transaction to pool from peer {}", peer_id);
                 }
             }
