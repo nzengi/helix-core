@@ -1,3 +1,4 @@
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -86,6 +87,16 @@ impl NetworkManager {
             }
         }
 
+        // Broadcast peer discovery
+        let peers = self.peers.read().await;
+        let peer_list: Vec<Peer> = peers.values().cloned().collect();
+
+        if !peer_list.is_empty() {
+            let discovery_message = NetworkMessage::PeerDiscovery { peers: peer_list };
+            drop(peers); // Release the lock before broadcasting
+            self.broadcast_message(discovery_message).await?;
+        }
+
         Ok(())
     }
 
@@ -105,21 +116,26 @@ impl NetworkManager {
 
     pub async fn broadcast_message(&self, message: NetworkMessage) -> Result<()> {
         let peers = self.peers.read().await;
+        let connected_peers: Vec<_> = peers.values()
+            .filter(|p| p.connected)
+            .collect();
 
-        for (peer_id, peer) in peers.iter() {
-            if peer.connected {
-                if let Err(e) = self.send_message_to_peer(peer_id, &message).await {
-                    tracing::warn!("Failed to send message to peer {}: {}", peer_id, e);
-                }
+        for peer in connected_peers {
+            if let Err(e) = self.send_message_to_peer(&peer.id, &message).await {
+                tracing::warn!("Failed to send message to peer {}: {}", peer.id, e);
             }
         }
 
         Ok(())
     }
 
-    async fn send_message_to_peer(&self, peer_id: &str, message: &NetworkMessage) -> Result<()> {
+    pub async fn send_message_to_peer(&self, peer_id: &str, message: &NetworkMessage) -> Result<()> {
         // In a real implementation, this would serialize and send the message
-        tracing::debug!("Sending message to peer {}: {:?}", peer_id, message);
+        tracing::debug!("📤 Sending message to peer {}: {:?}", peer_id, message);
+
+        // Simulate message processing
+        self.handle_received_message(peer_id, message.clone()).await?;
+
         Ok(())
     }
 
@@ -166,16 +182,23 @@ impl NetworkManager {
     }
 
     pub async fn disconnect_from_peer(&self, peer_id: &str) -> Result<()> {
-        self.peers.lock().await.remove(peer_id);
+        let mut peers = self.peers.write().await;
+        peers.remove(peer_id);
+        tracing::info!("🔌 Disconnected from peer: {}", peer_id);
         Ok(())
     }
 
-    pub async fnget_peer_count(&self) -> usize {
-        self.peers.lock().await.len()
+    pub async fn get_peer_count(&self) -> usize {
+        let peers = self.peers.read().await;
+        peers.len()
     }
 
-    pub async fn get_connected_peers(&self) -> Vec<String> {
-        self.peers.lock().await.keys().cloned().collect()
+    pub async fn get_connected_peers(&self) -> Result<Vec<Peer>> {
+        let peers = self.peers.read().await;
+        Ok(peers.values()
+            .filter(|p| p.connected)
+            .cloned()
+            .collect())
     }
 
     pub async fn broadcast_transaction(&self, transaction: &Transaction) -> Result<()> {
@@ -186,30 +209,6 @@ impl NetworkManager {
     pub async fn broadcast_block(&self, block: &Block) -> Result<()> {
         let message = NetworkMessage::Block(block.clone());
         self.broadcast_message(message).await
-    }
-
-    pub async fn broadcast_message(&self, message: NetworkMessage) -> Result<()> {
-        let peers = self.peers.read().await;
-        let connected_peers: Vec<_> = peers.values()
-            .filter(|p| p.connected)
-            .collect();
-
-        for peer in connected_peers {
-            self.send_message_to_peer(&peer.id, &message).await?;
-        }
-
-        Ok(())
-    }
-
-    pub async fn send_message_to_peer(&self, peer_id: &str, message: NetworkMessage) -> Result<()> {
-        // In a real implementation, this would send the message over the network
-        // For now, we'll just simulate message handling
-        tracing::debug!("📤 Sending message to peer {}: {:?}", peer_id, message);
-
-        // Simulate message processing
-        self.handle_received_message(peer_id, message).await?;
-
-        Ok(())
     }
 
     pub async fn handle_received_message(&self, peer_id: &str, message: NetworkMessage) -> Result<()> {
@@ -229,10 +228,14 @@ impl NetworkManager {
                 self.handle_peer_discovery(new_peers).await?;
             }
             NetworkMessage::Ping => {
-                self.send_message_to_peer(peer_id, NetworkMessage::Pong).await?;
+                self.send_message_to_peer(peer_id, &NetworkMessage::Pong).await?;
             }
             NetworkMessage::Pong => {
                 // Update peer connectivity
+                let mut peers = self.peers.write().await;
+                if let Some(peer) = peers.get_mut(peer_id) {
+                    peer.last_seen = chrono::Utc::now();
+                }
             }
             _ => {
                 // Forward to registered handlers
@@ -250,36 +253,14 @@ impl NetworkManager {
         let mut peers = self.peers.write().await;
 
         for new_peer in new_peers {
-            if !peers.contains_key(&new_peer.id) {
+            if !peers.contains_key(&new_peer.id) && peers.len() < self.config.network.max_peers as usize {
+                tracing::info!("🆕 Discovered new peer: {}", new_peer.id);
                 peers.insert(new_peer.id.clone(), new_peer);
             }
         }
 
         Ok(())
     }
-
-    async fn start_peer_discovery(&self) -> Result<()> {
-        let peers = self.peers.read().await;
-        let peer_list: Vec<Peer> = peers.values().cloned().collect();
-
-        if !peer_list.is_empty() {
-            let discovery_message = NetworkMessage::PeerDiscovery { peers: peer_list };
-            drop(peers); // Release the lock before broadcasting
-            self.broadcast_message(discovery_message).await?;
-        }
-
-        Ok(())
-    }
-
-    pub async fn get_connected_peers(&self) -> Result<Vec<Peer>> {
-        let peers = self.peers.read().await;
-        Ok(peers.values()
-            .filter(|p| p.connected)
-            .cloned()
-            .collect())
-    }
-
-
 
     pub async fn sync_with_peers(&self, from_height: u64) -> Result<Vec<Block>> {
         let sync_request = NetworkMessage::SyncRequest { from_height };
@@ -298,41 +279,55 @@ impl NetworkManager {
     pub async fn handle_network_event(&self, event: NetworkEvent) -> Result<()> {
         match event {
             NetworkEvent::PeerConnected(peer_id) => {
-                tracing::info!("Peer connected: {}", peer_id);
+                tracing::info!("🟢 Peer connected: {}", peer_id);
             }
             NetworkEvent::PeerDisconnected(peer_id) => {
-                tracing::info!("Peer disconnected: {}", peer_id);
+                tracing::info!("🔴 Peer disconnected: {}", peer_id);
                 self.disconnect_from_peer(&peer_id).await?;
             }
             NetworkEvent::MessageReceived(peer_id, message) => {
-                self.handle_message(&peer_id, &message).await?;
+                self.handle_received_message(&peer_id, message).await?;
             }
         }
         Ok(())
     }
 
-    async fn handle_message(&self, peer_id: &str, message: &NetworkMessage) -> Result<()> {
-        match message {
-            NetworkMessage::Ping => {
-                self.send_message_to_peer(peer_id, &NetworkMessage::Pong).await?;
+    pub async fn ping_all_peers(&self) -> Result<()> {
+        let ping_message = NetworkMessage::Ping;
+        self.broadcast_message(ping_message).await?;
+        Ok(())
+    }
+
+    pub async fn get_network_stats(&self) -> Result<NetworkStats> {
+        let peers = self.peers.read().await;
+        let connected_count = peers.values().filter(|p| p.connected).count();
+        let total_count = peers.len();
+
+        Ok(NetworkStats {
+            total_peers: total_count,
+            connected_peers: connected_count,
+            is_connected: connected_count > 0,
+            network_health: if connected_count > 0 { 
+                (connected_count as f64 / total_count as f64 * 100.0) 
+            } else { 
+                0.0 
+            },
+        })
+    }
+
+    pub async fn cleanup_disconnected_peers(&self) -> Result<()> {
+        let mut peers = self.peers.write().await;
+        let now = chrono::Utc::now();
+        let timeout_duration = chrono::Duration::minutes(5);
+
+        peers.retain(|_, peer| {
+            let is_recent = now.signed_duration_since(peer.last_seen) < timeout_duration;
+            if !is_recent {
+                tracing::info!("🧹 Cleaning up inactive peer: {}", peer.id);
             }
-            NetworkMessage::Pong => {
-                // Handle pong message
-            }
-            NetworkMessage::Transaction(tx) => {
-                // Forward transaction to consensus
-            }
-            NetworkMessage::Block(block) => {
-                // Forward block to consensus
-            }
-            NetworkMessage::SyncRequest { from_height: _ } => {
-                // Handle sync request
-            }
-            NetworkMessage::SyncResponse { blocks: _ } => {
-                // Handle sync response
-            }
-            _ => {}
-        }
+            is_recent
+        });
+
         Ok(())
     }
 }
@@ -349,17 +344,19 @@ impl MessageHandler for BlockchainMessageHandler {
             NetworkMessage::Transaction(tx) => {
                 // Convert consensus::Transaction to state::Transaction
                 let state_tx = crate::state::Transaction {
+                    id: tx.hash.clone(),
                     hash: tx.hash.clone(),
                     from: tx.from.clone(),
                     to: tx.to.clone(),
                     value: tx.amount,
+                    amount: tx.amount,
+                    fee: tx.gas_price * tx.gas_limit,
                     gas_limit: tx.gas_limit,
                     gas_price: tx.gas_price,
                     nonce: tx.nonce,
                     data: tx.data.clone(),
                     signature: tx.signature.clone(),
                     timestamp: tx.timestamp.timestamp() as u64,
-                    amount: tx.amount,
                 };
 
                 if self.chain_state.validate_transaction(&state_tx).await.unwrap_or(false) {
@@ -368,13 +365,89 @@ impl MessageHandler for BlockchainMessageHandler {
                 }
             }
             NetworkMessage::Block(block) => {
-                // In a real implementation, we would validate and potentially add the block
-                tracing::info!("📦 Received block {} from peer {}", block.height, peer_id);
+                // Convert consensus::Block to state::Block for validation
+                let state_block = crate::state::Block {
+                    index: block.height,
+                    timestamp: block.timestamp.timestamp() as u64,
+                    previous_hash: block.previous_hash.clone(),
+                    merkle_root: block.merkle_root.clone(),
+                    transactions: block.transactions.iter().map(|tx| crate::state::Transaction {
+                        id: tx.hash.clone(),
+                        hash: tx.hash.clone(),
+                        from: tx.from.clone(),
+                        to: tx.to.clone(),
+                        value: tx.amount,
+                        amount: tx.amount,
+                        fee: tx.gas_price * tx.gas_limit,
+                        gas_limit: tx.gas_limit,
+                        gas_price: tx.gas_price,
+                        nonce: tx.nonce,
+                        data: tx.data.clone(),
+                        signature: tx.signature.clone(),
+                        timestamp: tx.timestamp.timestamp() as u64,
+                    }).collect(),
+                    hash: block.hash.clone(),
+                    signatures: vec![block.signature.clone()],
+                    validator: block.validator.clone(),
+                };
+
+                self.chain_state.add_block(&state_block).await.unwrap_or(());
+                tracing::info!("📦 Received and processed block {} from peer {}", block.height, peer_id);
+            }
+            NetworkMessage::SyncRequest { from_height } => {
+                tracing::info!("🔄 Received sync request from {} for height {}", peer_id, from_height);
+                // In a real implementation, we would send blocks
+            }
+            NetworkMessage::SyncResponse { blocks } => {
+                tracing::info!("📥 Received {} blocks in sync response from {}", blocks.len(), peer_id);
+                // Process received blocks
+                for block in blocks {
+                    let state_block = crate::state::Block {
+                        index: block.height,
+                        timestamp: block.timestamp.timestamp() as u64,
+                        previous_hash: block.previous_hash.clone(),
+                        merkle_root: block.merkle_root.clone(),
+                        transactions: block.transactions.iter().map(|tx| crate::state::Transaction {
+                            id: tx.hash.clone(),
+                            hash: tx.hash.clone(),
+                            from: tx.from.clone(),
+                            to: tx.to.clone(),
+                            value: tx.amount,
+                            amount: tx.amount,
+                            fee: tx.gas_price * tx.gas_limit,
+                            gas_limit: tx.gas_limit,
+                            gas_price: tx.gas_price,
+                            nonce: tx.nonce,
+                            data: tx.data.clone(),
+                            signature: tx.signature.clone(),
+                            timestamp: tx.timestamp.timestamp() as u64,
+                        }).collect(),
+                        hash: block.hash.clone(),
+                        signatures: vec![block.signature.clone()],
+                        validator: block.validator.clone(),
+                    };
+                    self.chain_state.add_block(&state_block).await.unwrap_or(());
+                }
             }
             _ => {}
         }
         Ok(())
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum NetworkEvent {
+    PeerConnected(String),
+    PeerDisconnected(String),
+    MessageReceived(String, NetworkMessage),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetworkStats {
+    pub total_peers: usize,
+    pub connected_peers: usize,
+    pub is_connected: bool,
+    pub network_health: f64,
 }
 
 #[cfg(test)]
@@ -426,11 +499,54 @@ mod tests {
         assert_eq!(peers[0].address, "127.0.0.1");
         assert_eq!(peers[0].port, 8081);
     }
-}
 
-#[derive(Debug, Clone)]
-pub enum NetworkEvent {
-    PeerConnected(String),
-    PeerDisconnected(String),
-    MessageReceived(String, NetworkMessage),
+    #[tokio::test]
+    async fn test_message_broadcasting() {
+        let config = Config {
+            network: NetworkConfig {
+                listen_addr: "0.0.0.0".to_string(),
+                listen_port: 8080,
+                max_peers: 50,
+                bootstrap_nodes: Vec::new(),
+            },
+            consensus: Default::default(),
+            database: Default::default(),
+            api: Default::default(),
+            security: Default::default(),
+            wallet: Default::default(),
+        };
+
+        let network = NetworkManager::new(config).await.unwrap();
+        network.connect_to_peer("127.0.0.1:8081").await.unwrap();
+
+        let ping_message = NetworkMessage::Ping;
+        let result = network.broadcast_message(ping_message).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_network_stats() {
+        let config = Config {
+            network: NetworkConfig {
+                listen_addr: "0.0.0.0".to_string(),
+                listen_port: 8080,
+                max_peers: 50,
+                bootstrap_nodes: Vec::new(),
+            },
+            consensus: Default::default(),
+            database: Default::default(),
+            api: Default::default(),
+            security: Default::default(),
+            wallet: Default::default(),
+        };
+
+        let network = NetworkManager::new(config).await.unwrap();
+        network.connect_to_peer("127.0.0.1:8081").await.unwrap();
+
+        let stats = network.get_network_stats().await.unwrap();
+        assert_eq!(stats.total_peers, 1);
+        assert_eq!(stats.connected_peers, 1);
+        assert!(stats.is_connected);
+        assert_eq!(stats.network_health, 100.0);
+    }
 }
