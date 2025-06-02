@@ -1,0 +1,37 @@
+[network]
+host = "0.0.0.0"
+port = 8000
+bootstrap_nodes = []
+max_peers = 100
+peer_timeout = 30
+
+[consensus]
+validator_address = ""
+min_validators = 4
+block_time = 2
+max_block_size = 1000000
+gas_limit = 1000000
+
+[sharding]
+total_shards = 16
+shard_size = 1000
+cross_shard_timeout = 60
+shard_sync_interval = 10
+
+[database]
+path = "helix.db"
+max_connections = 10
+cache_size = 1000000
+
+[api]
+enabled = true
+host = "127.0.0.1"
+port = 8080
+cors_origins = ["*"]
+rate_limit = 100
+
+[logging]
+level = "info"
+file = "helix.log"
+max_size = 10000000
+max_files = 5 
