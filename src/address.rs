@@ -1,10 +1,9 @@
-
-use std::fmt;
-use serde::{Serialize, Deserialize};
-use sha3::{Keccak256, Digest};
-use secp256k1::{PublicKey, SecretKey, Secp256k1};
-use rand::{rngs::OsRng, RngCore};
 use anyhow::Result;
+use rand::{rngs::OsRng, RngCore};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use serde::{Deserialize, Serialize};
+use sha3::{Digest, Keccak256};
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Address(String);
@@ -46,7 +45,7 @@ impl Address {
         let mut hasher = Keccak256::new();
         hasher.update(&public_key_bytes[1..]);
         let hash = hasher.finalize();
-        
+
         Address(format!("0x{}", hex::encode(&hash[12..])))
     }
 
@@ -56,7 +55,7 @@ impl Address {
         hasher.update(&gear_params.torque_ratio.to_le_bytes());
         hasher.update(&gear_params.gear_ratio.to_le_bytes());
         hasher.update(&gear_params.efficiency.to_le_bytes());
-        
+
         let hash = hasher.finalize();
         Address(format!("0xg{}", hex::encode(&hash[12..])))
     }
@@ -67,7 +66,7 @@ impl Address {
         hasher.update(&stake.to_le_bytes());
         hasher.update(&beta_angle.to_le_bytes());
         hasher.update(&chrono::Utc::now().timestamp().to_le_bytes());
-        
+
         let hash = hasher.finalize();
         Address(format!("0xv{}", hex::encode(&hash[12..])))
     }
@@ -76,7 +75,7 @@ impl Address {
         let mut hasher = Keccak256::new();
         hasher.update(deployer.as_bytes());
         hasher.update(&nonce.to_le_bytes());
-        
+
         let hash = hasher.finalize();
         Address(format!("0xc{}", hex::encode(&hash[12..])))
     }
@@ -88,7 +87,7 @@ impl Address {
             hasher.update(owner.as_bytes());
         }
         hasher.update(&threshold.to_le_bytes());
-        
+
         let hash = hasher.finalize();
         Address(format!("0xm{}", hex::encode(&hash[12..])))
     }
@@ -97,12 +96,12 @@ impl Address {
         if !address.starts_with("0x") {
             return false;
         }
-        
+
         let hex_part = &address[2..];
         if hex_part.len() != 40 && hex_part.len() != 41 {
             return false;
         }
-        
+
         hex_part.chars().all(|c| c.is_ascii_hexdigit())
     }
 
@@ -133,16 +132,20 @@ impl Address {
         let mut hasher = Keccak256::new();
         hasher.update(address.as_bytes());
         let hash = hasher.finalize();
-        
+
         let mut result = String::with_capacity(42);
         result.push_str("0x");
-        
+
         for (i, c) in address.chars().enumerate() {
             if c.is_ascii_digit() {
                 result.push(c);
             } else {
                 let hash_byte = hash[i / 2];
-                let nibble = if i % 2 == 0 { hash_byte >> 4 } else { hash_byte & 0xf };
+                let nibble = if i % 2 == 0 {
+                    hash_byte >> 4
+                } else {
+                    hash_byte & 0xf
+                };
                 if nibble >= 8 {
                     result.push(c.to_ascii_uppercase());
                 } else {
@@ -150,29 +153,34 @@ impl Address {
                 }
             }
         }
-        
+
         result
     }
 }
 
 impl GearParameters {
-    pub fn new(beta_angle: f64, torque_ratio: f64, gear_ratio: f64, efficiency: f64) -> Result<Self> {
+    pub fn new(
+        beta_angle: f64,
+        torque_ratio: f64,
+        gear_ratio: f64,
+        efficiency: f64,
+    ) -> Result<Self> {
         if !(10.0..=80.0).contains(&beta_angle) {
             anyhow::bail!("Beta angle must be between 10 and 80 degrees");
         }
-        
+
         if !(0.1..=10.0).contains(&torque_ratio) {
             anyhow::bail!("Torque ratio must be between 0.1 and 10.0");
         }
-        
+
         if !(0.5..=5.0).contains(&gear_ratio) {
             anyhow::bail!("Gear ratio must be between 0.5 and 5.0");
         }
-        
+
         if !(0.1..=1.0).contains(&efficiency) {
             anyhow::bail!("Efficiency must be between 0.1 and 1.0");
         }
-        
+
         Ok(Self {
             beta_angle,
             torque_ratio,
@@ -226,11 +234,15 @@ impl AddressGenerator {
         let secret_key = SecretKey::new(&mut rng);
         let public_key = PublicKey::from_secret_key(&self.secp, &secret_key);
         let address = Address::from_public_key(&public_key);
-        
+
         Ok((secret_key, public_key, address))
     }
 
-    pub fn generate_gear_address(&self, beta_angle: f64, stake: u64) -> Result<(GearParameters, Address)> {
+    pub fn generate_gear_address(
+        &self,
+        beta_angle: f64,
+        stake: u64,
+    ) -> Result<(GearParameters, Address)> {
         let mut rng = OsRng;
         let torque_ratio = 1.0 + (rng.next_u32() % 300) as f64 / 100.0; // 1.0-4.0
         let gear_ratio = 0.5 + (rng.next_u32() % 450) as f64 / 100.0; // 0.5-5.0

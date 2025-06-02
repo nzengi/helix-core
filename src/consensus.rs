@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use std::collections::HashMap;
-use tokio::sync::{Mutex, RwLock};
-use serde::{Serialize, Deserialize};
-use chrono::{DateTime, Utc};
-use anyhow::Result;
 use crate::crypto::CryptoManager;
 use crate::state::ChainState;
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{Mutex, RwLock};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Validator {
@@ -79,10 +79,7 @@ pub enum VoteType {
 }
 
 impl ConsensusState {
-    pub fn new(
-        chain_state: Arc<ChainState>,
-        crypto: Arc<Mutex<CryptoManager>>,
-    ) -> Self {
+    pub fn new(chain_state: Arc<ChainState>, crypto: Arc<Mutex<CryptoManager>>) -> Self {
         Self {
             current_height: 0,
             last_block_hash: "genesis".to_string(),
@@ -111,7 +108,11 @@ impl ConsensusState {
     }
 
     pub fn remove_transaction(&mut self, tx_hash: &str) -> Option<Transaction> {
-        if let Some(pos) = self.pending_transactions.iter().position(|tx| tx.hash == tx_hash) {
+        if let Some(pos) = self
+            .pending_transactions
+            .iter()
+            .position(|tx| tx.hash == tx_hash)
+        {
             Some(self.pending_transactions.remove(pos))
         } else {
             None
@@ -125,7 +126,8 @@ impl ConsensusState {
     }
 
     pub fn add_validator(&mut self, validator: Validator) {
-        self.active_validators.insert(validator.address.clone(), validator);
+        self.active_validators
+            .insert(validator.address.clone(), validator);
     }
 
     pub fn remove_validator(&mut self, address: &str) {
@@ -181,8 +183,8 @@ impl RotaryBFT {
             validators: Arc::new(RwLock::new(HashMap::new())),
             chain_state,
             crypto: Arc::new(Mutex::new(CryptoManager::new())),
-            min_torque_threshold: 8.0,  // 8 Nm
-            min_commit_torque: 24.0,    // 24 Nm
+            min_torque_threshold: 8.0, // 8 Nm
+            min_commit_torque: 24.0,   // 24 Nm
         }
     }
 
@@ -223,7 +225,7 @@ impl RotaryBFT {
         let mut temp_block = block.clone();
         temp_block.hash = String::new();
         temp_block.signature = String::new();
-        
+
         let block_data = serde_json::to_string(&temp_block)?;
         let calculated_hash = crate::crypto::CryptoManager::hash_sha256(block_data.as_bytes());
 
@@ -254,7 +256,9 @@ impl RotaryBFT {
         }
 
         // Execute transactions and update state
-        self.chain_state.execute_transactions(&block.transactions).await?;
+        self.chain_state
+            .execute_transactions(&block.transactions)
+            .await?;
 
         // Add block to chain
         self.chain_state.add_block(&block).await?;
@@ -264,7 +268,11 @@ impl RotaryBFT {
 
     async fn calculate_network_load(&self) -> f64 {
         // Simple network load calculation based on pending transactions
-        let pending = self.chain_state.get_pending_transactions().await.unwrap_or_default();
+        let pending = self
+            .chain_state
+            .get_pending_transactions()
+            .await
+            .unwrap_or_default();
         let base_load = 10.0;
         base_load + (pending.len() as f64 * 0.1)
     }
@@ -301,7 +309,10 @@ impl RotaryBFT {
         Ok(total_torque)
     }
 
-    async fn validate_transactions(&self, transactions: Vec<Transaction>) -> Result<Vec<Transaction>> {
+    async fn validate_transactions(
+        &self,
+        transactions: Vec<Transaction>,
+    ) -> Result<Vec<Transaction>> {
         let mut valid_transactions = Vec::new();
 
         for tx in transactions {
@@ -338,7 +349,11 @@ impl RotaryBFT {
             let network_load = self.calculate_network_load().await;
             let required_torque = validator.calculate_torque(network_load);
             if block.torque < required_torque || required_torque < self.min_torque_threshold {
-                tracing::warn!("Block torque {} below threshold {}", block.torque, self.min_torque_threshold);
+                tracing::warn!(
+                    "Block torque {} below threshold {}",
+                    block.torque,
+                    self.min_torque_threshold
+                );
                 return Ok(false);
             }
         } else {
@@ -349,8 +364,12 @@ impl RotaryBFT {
         // Validate timestamp (not too far in future or past)
         let now = Utc::now();
         let time_diff = (now.timestamp() - block.timestamp.timestamp()).abs();
-        if time_diff > 300 { // 5 minutes tolerance
-            tracing::warn!("Block timestamp too far from current time: {} seconds", time_diff);
+        if time_diff > 300 {
+            // 5 minutes tolerance
+            tracing::warn!(
+                "Block timestamp too far from current time: {} seconds",
+                time_diff
+            );
             return Ok(false);
         }
 
@@ -362,9 +381,7 @@ impl RotaryBFT {
             return "empty".to_string();
         }
 
-        let tx_hashes: Vec<String> = transactions.iter()
-            .map(|tx| tx.hash.clone())
-            .collect();
+        let tx_hashes: Vec<String> = transactions.iter().map(|tx| tx.hash.clone()).collect();
 
         let merkle_tree = crate::crypto::MerkleTree::new(tx_hashes);
         merkle_tree.root
@@ -379,19 +396,25 @@ impl RotaryBFT {
                 hash: state_block.hash,
                 previous_hash: state_block.previous_hash,
                 height: state_block.index,
-                timestamp: chrono::DateTime::from_timestamp(state_block.timestamp as i64, 0).unwrap_or_else(|| Utc::now()),
-                transactions: state_block.transactions.iter().map(|tx| Transaction {
-                    hash: tx.hash.clone(),
-                    from: tx.from.clone(),
-                    to: tx.to.clone(),
-                    amount: tx.amount,
-                    gas_price: tx.gas_price,
-                    gas_limit: tx.gas_limit,
-                    nonce: tx.nonce,
-                    data: tx.data.clone(),
-                    signature: tx.signature.clone(),
-                    timestamp: chrono::DateTime::from_timestamp(tx.timestamp as i64, 0).unwrap_or_else(|| Utc::now()),
-                }).collect(),
+                timestamp: chrono::DateTime::from_timestamp(state_block.timestamp as i64, 0)
+                    .unwrap_or_else(|| Utc::now()),
+                transactions: state_block
+                    .transactions
+                    .iter()
+                    .map(|tx| Transaction {
+                        hash: tx.hash.clone(),
+                        from: tx.from.clone(),
+                        to: tx.to.clone(),
+                        amount: tx.amount,
+                        gas_price: tx.gas_price,
+                        gas_limit: tx.gas_limit,
+                        nonce: tx.nonce,
+                        data: tx.data.clone(),
+                        signature: tx.signature.clone(),
+                        timestamp: chrono::DateTime::from_timestamp(tx.timestamp as i64, 0)
+                            .unwrap_or_else(|| Utc::now()),
+                    })
+                    .collect(),
                 validator: state_block.validator,
                 signature: state_block.signatures.join(","),
                 merkle_root: state_block.merkle_root,
@@ -415,14 +438,14 @@ impl RotaryBFT {
 
     pub async fn start_consensus(&self) -> Result<()> {
         tracing::info!("Starting RotaryBFT consensus engine");
-        
+
         // Initialize genesis validators if none exist
         let validators = self.validators.read().await;
         if validators.is_empty() {
             drop(validators);
             self.initialize_genesis_validators().await?;
         }
-        
+
         Ok(())
     }
 
@@ -433,7 +456,10 @@ impl RotaryBFT {
 
     pub async fn is_validator_active(&self, address: &str) -> bool {
         let validators = self.validators.read().await;
-        validators.get(address).map(|v| v.is_active).unwrap_or(false)
+        validators
+            .get(address)
+            .map(|v| v.is_active)
+            .unwrap_or(false)
     }
 
     pub async fn get_validator_count(&self) -> usize {
@@ -495,7 +521,7 @@ impl RotaryBFT {
         if !self.chain_state.validate_transaction(&transaction).await? {
             anyhow::bail!("Transaction validation failed");
         }
-        
+
         // Add to pending transactions
         self.chain_state.add_pending_transaction(transaction).await
     }
@@ -539,7 +565,8 @@ impl RotaryBFT {
     pub async fn process_vote(&self, vote: ConsensusVote) -> Result<()> {
         // Validate vote
         let validators = self.validators.read().await;
-        let validator = validators.get(&vote.validator_address)
+        let validator = validators
+            .get(&vote.validator_address)
             .ok_or_else(|| anyhow::anyhow!("Unknown validator"))?;
 
         let network_load = self.calculate_network_load().await;
@@ -607,20 +634,18 @@ mod tests {
 
         consensus.initialize_genesis_validators().await.unwrap();
 
-        let transactions = vec![
-            Transaction {
-                hash: "tx1".to_string(),
-                from: "alice".to_string(),
-                to: "bob".to_string(),
-                amount: 100,
-                gas_price: 21,
-                gas_limit: 21000,
-                nonce: 1,
-                data: Vec::new(),
-                signature: "sig1".to_string(),
-                timestamp: Utc::now(),
-            }
-        ];
+        let transactions = vec![Transaction {
+            hash: "tx1".to_string(),
+            from: "alice".to_string(),
+            to: "bob".to_string(),
+            amount: 100,
+            gas_price: 21,
+            gas_limit: 21000,
+            nonce: 1,
+            data: Vec::new(),
+            signature: "sig1".to_string(),
+            timestamp: Utc::now(),
+        }];
 
         let block = consensus.propose_block(transactions).await.unwrap();
         assert_eq!(block.height, 1);
