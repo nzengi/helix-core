@@ -18,3 +18,16 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cargo run"
+
+[[workflows.workflow]]
+name = "Start TestNet"
+author = 42808948
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "chmod +x scripts/start_testnet.sh"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "./scripts/start_testnet.sh"

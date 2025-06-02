@@ -56,13 +56,19 @@ pub struct Block {
     pub signatures: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, thiserror::Error)]
 pub enum StateError {
+    #[error("Account not found")]
     AccountNotFound,
+    #[error("Insufficient balance")]
     InsufficientBalance,
+    #[error("Account already exists")]
     AccountAlreadyExists,
+    #[error("Invalid transaction: {0}")]
     InvalidTransaction(String),
+    #[error("Invalid nonce")]
     InvalidNonce,
+    #[error("Other error: {0}")]
     Other(String),
 }
 

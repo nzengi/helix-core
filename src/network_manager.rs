@@ -156,28 +156,6 @@ impl NetworkManager {
         handlers.push(handler);
     }
 
-    pub async fn get_peer_count(&self) -> usize {
-        let peers = self.peers.read().await;
-        peers.len()
-    }
-
-    pub async fn get_connected_peers(&self) -> Vec<Peer> {
-        let peers = self.peers.read().await;
-        peers.values()
-            .filter(|peer| peer.connected)
-            .cloned()
-            .collect()
-    }
-
-    pub async fn disconnect_peer(&self, peer_id: &str) -> Result<()> {
-        let mut peers = self.peers.write().await;
-        if let Some(peer) = peers.get_mut(peer_id) {
-            peer.connected = false;
-            tracing::info!("Disconnected from peer: {}", peer_id);
-        }
-        Ok(())
-    }
-
     pub async fn start(&self) -> Result<()> {
         tracing::info!("🌐 Starting network manager...");
 
@@ -351,15 +329,7 @@ impl NetworkManager {
             .collect())
     }
 
-    pub async fn get_peer_count(&self) -> usize {
-        let peers = self.peers.read().await;
-        peers.values().filter(|p| p.connected).count()
-    }
-
-    pub async fn add_message_handler(&self, handler: Box<dyn MessageHandler + Send + Sync>) {
-        let mut handlers = self.message_handlers.write().await;
-        handlers.push(handler);
-    }
+    
 
     pub async fn sync_with_peers(&self, from_height: u64) -> Result<Vec<Block>> {
         let sync_request = NetworkMessage::SyncRequest { from_height };
@@ -386,8 +356,24 @@ impl MessageHandler for BlockchainMessageHandler {
     async fn handle_message(&self, peer_id: &str, message: NetworkMessage) -> Result<()> {
         match message {
             NetworkMessage::Transaction(tx) => {
-                if self.chain_state.validate_transaction(&tx).await? {
-                    self.chain_state.add_pending_transaction(tx).await?;
+                // Convert consensus::Transaction to state::Transaction
+                let state_tx = crate::state::Transaction {
+                    hash: tx.hash.clone(),
+                    from: tx.from.clone(),
+                    to: tx.to.clone(),
+                    value: tx.amount,
+                    gas_limit: tx.gas_limit,
+                    gas_price: tx.gas_price,
+                    nonce: tx.nonce,
+                    data: tx.data.clone(),
+                    signature: tx.signature.clone(),
+                    timestamp: tx.timestamp.timestamp() as u64,
+                    amount: tx.amount,
+                };
+                
+                if self.chain_state.validate_transaction(&state_tx).await.unwrap_or(false) {
+                    self.chain_state.add_pending_transaction(state_tx).await.unwrap_or(());
+                }
                     tracing::info!("📝 Added transaction to pool from peer {}", peer_id);
                 }
             }

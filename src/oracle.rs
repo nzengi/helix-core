@@ -116,7 +116,7 @@ impl OracleManager {
         update_interval: Duration,
     ) -> Result<Oracle, OracleError> {
         let address = self.generate_oracle_address(&name)?;
-        
+
         let oracle = Oracle {
             address: address.clone(),
             name,
@@ -162,7 +162,7 @@ impl OracleManager {
 
         // Ağırlıklı ortalama hesapla
         let weighted_value = self.calculate_weighted_average(&values, &weights)?;
-        
+
         // Yeni veri noktası oluştur
         let data_point = DataPoint {
             oracle_address: oracle_address.to_string(),
@@ -189,7 +189,7 @@ impl OracleManager {
         num_words: u32,
     ) -> Result<VRFRequest, OracleError> {
         let request_id = self.generate_request_id()?;
-        
+
         let request = VRFRequest {
             seed,
             callback_address,
@@ -319,7 +319,7 @@ impl OracleManager {
         let data_points = self.data_points.lock().await;
         let points = data_points.get(oracle_address)
             .ok_or(OracleError::OracleNotFound)?;
-        
+
         Ok(points.len() as u64 + 1)
     }
 
@@ -346,13 +346,47 @@ pub enum OracleError {
     #[error("Not implemented")]
     NotImplemented,
     #[error("Network error: {0}")]
-    NetworkError(#[from] reqwest::Error),
+    NetworkError(reqwest::Error),
     #[error("Serialization error: {0}")]
-    SerializationError(#[from] serde_json::Error),
+    SerializationError(serde_json::Error),
     #[error("Invalid method: {0}")]
     InvalidMethod(String),
     #[error("Timeout")]
     Timeout,
     #[error("Verification failed")]
     VerificationFailed,
-} 
+    #[error("Data error: {0}")]
+    DataError(String),
+    #[error("Invalid data format")]
+    InvalidData,
+    #[error("Timeout")]
+    Timeout,
+    #[error("Authorization failed")]
+    Unauthorized,
+    #[error("Rate limit exceeded")]
+    RateLimitExceeded,
+    #[error("Service unavailable")]
+    ServiceUnavailable,
+    #[error("Invalid signature")]
+    InvalidSignature,
+    #[error("VRF verification failed")]
+    VrfVerificationFailed,
+    #[error("Network error: {0}")]
+    NetworkError(String),
+    #[error("Invalid data format")]
+    InvalidData,
+    #[error("Data parsing error: {0}")]
+    DataError(String),
+    #[error("Timeout")]
+    Timeout,
+    #[error("Authorization failed")]
+    Unauthorized,
+    #[error("Rate limit exceeded")]
+    RateLimitExceeded,
+    #[error("Service unavailable")]
+    ServiceUnavailable,
+    #[error("Invalid signature")]
+    InvalidSignature,
+    #[error("VRF verification failed")]
+    VrfVerificationFailed,
+}
