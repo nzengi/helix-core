@@ -10,8 +10,8 @@ path = "src/lib.rs"
 [dependencies]
 tokio = { version = "1.0", features = ["full"] }
 axum = { version = "0.7", features = ["macros"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0.93"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["trace", "cors"] }
 tracing = "0.1"
@@ -43,18 +43,16 @@ aes-gcm = "0.10"
 curve25519-dalek = { version = "4.1", features = ["serde"] }
 ed25519-dalek = "2.1"
 x25519-dalek = "2.0"
-bulletproofs = "2.0"
 merlin = "3.0"
-ristretto255 = "0.1"
 zeroize = "1.6"
 subtle = "2.5"
 
 # WASM ve Akıllı Kontrat bağımlılıkları
-wasmer = "3.0"
-wasmer-compiler = "3.0"
-wasmer-compiler-cranelift = "3.0"
-wasmer-engine-universal = "3.0"
-wasmer-types = "3.0"
+wasmer = "2.3.0"
+wasmer-compiler = "2.3.0"
+wasmer-compiler-cranelift = "2.3.0"
+wasmer-engine-universal = "2.3.0"
+wasmer-types = "2.3.0"
 wasmparser = "0.100"
 wasm-encoder = "0.20"
 wasm-bindgen = "0.2"
@@ -65,7 +63,7 @@ wat = "1.0"
 wabt = "0.10"
 parity-wasm = "0.42"
 wasm-gc = "0.1"
-wasm-opt = "0.1"
+wasm-opt = "0.116.1"
 wasm-pack = "0.12"
 wasm-bindgen-test = "0.3"
 
@@ -91,10 +89,10 @@ tower-retry = "0.3"
 tower-limit = "0.3"
 tower-balance = "0.3"
 tower-discover = "0.3"
-tower-hedge = "0.3"
-tower-load-shed = "0.3"
-tower-rate-limit = "0.3"
 tower-util = "0.3"
+
+# Bellman kütüphanesi
+bellman = { git = "https://github.com/zkcrypto/bellman", branch = "main" }
 
 [dev-dependencies]
 tokio-test = "0.4"

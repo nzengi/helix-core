@@ -3,7 +3,8 @@ use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
-use secp256k1::{PublicKey, SecretKey, Message, Signature};
+use secp256k1::{PublicKey, SecretKey, Message};
+use secp256k1::ecdsa::Signature;
 use sha3::{Keccak256, Digest};
 use crate::consensus::Transaction;
 

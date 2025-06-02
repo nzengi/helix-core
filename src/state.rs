@@ -6,13 +6,12 @@ use rusqlite::{Connection, params};
 use crate::consensus::{Block, Transaction};
 use crate::sharding::ShardId;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct State {
-    #[serde(skip)]
-    pub db: Arc<Mutex<Connection>>,
     pub accounts: Arc<Mutex<HashMap<String, Account>>>,
     pub shard_states: Arc<Mutex<HashMap<ShardId, ShardState>>>,
     pub last_block: Arc<Mutex<Option<Block>>>,
+    pub db: Arc<Mutex<Connection>>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -30,6 +29,17 @@ pub struct ShardState {
     pub last_block: Option<Block>,
     pub accounts: HashMap<String, Account>,
     pub storage: HashMap<String, Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Block {
+    pub id: u64,
+    pub hash: String,
+    pub parent_hash: String,
+    pub number: u64,
+    pub timestamp: u64,
+    pub state_root: String,
+    pub transactions: Vec<Transaction>,
 }
 
 impl State {

@@ -3,6 +3,17 @@ use sha3::{Keccak256, Digest};
 use serde::{Serialize, Deserialize};
 use crate::state::Account;
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Account {
+    pub address: String,
+    pub nonce: u64,
+    pub shard_id: u32,
+    pub storage_root: String,
+    pub staked_amount: f64,
+    pub beta_angle: f64,
+    pub efficiency: f64,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct GenesisBlock {
     pub timestamp: u64,
@@ -53,8 +64,11 @@ impl GenesisState {
         accounts.insert(
             genesis.initial_validator.clone(),
             Account {
-                balance: genesis.initial_supply,
-                staked_amount: 0.0,
+                address: genesis.initial_validator.clone(),
+                nonce: 0,
+                shard_id: 0,
+                storage_root: String::new(),
+                staked_amount: genesis.initial_supply,
                 beta_angle: 45.0,
                 efficiency: 1.0,
             }
@@ -65,8 +79,11 @@ impl GenesisState {
         accounts.insert(
             "0x7a3baefdbfad2171fbfdb2a9553e206d73e63f22869e".to_string(),
             Account {
-                balance: 1000000.0,
-                staked_amount: 0.0,
+                address: "0x7a3baefdbfad2171fbfdb2a9553e206d73e63f22869e".to_string(),
+                nonce: 0,
+                shard_id: 0,
+                storage_root: String::new(),
+                staked_amount: 1000000.0,
                 beta_angle: 45.0,
                 efficiency: 1.0,
             },
@@ -75,8 +92,11 @@ impl GenesisState {
         accounts.insert(
             "0x8b4cdefdbfad2171fbfdb2a9553e206d73e63f22869f".to_string(),
             Account {
-                balance: 500000.0,
-                staked_amount: 0.0,
+                address: "0x8b4cdefdbfad2171fbfdb2a9553e206d73e63f22869f".to_string(),
+                nonce: 0,
+                shard_id: 0,
+                storage_root: String::new(),
+                staked_amount: 500000.0,
                 beta_angle: 45.0,
                 efficiency: 1.0,
             },

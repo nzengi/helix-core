@@ -20,7 +20,7 @@ use crate::gas::GasCalculator;
 use crate::compression::HelixCompression;
 use crate::state::State as ChainState;
 use crate::genesis::{GenesisBlock, GenesisState};
-use crate::network::{NetworkState, NodeInfo};
+use crate::network::{NetworkState, NodeInfo, PeerInfo};
 use crate::database::Database;
 use crate::address::HelixWallet;
 
@@ -88,9 +88,27 @@ impl HelixNode {
         let node_info = NodeInfo {
             address: host.to_string(),
             port,
-            wallet_address: wallet_address.to_string(),
+            version: "1.0.0".to_string(),
+            capabilities: std::collections::HashSet::new(),
+            last_sync: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
         };
         
-        self.network_state.add_node(node_info).await;
+        let peer_info = PeerInfo {
+            address: host.to_string(),
+            port,
+            last_seen: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            latency: 0,
+            version: "1.0.0".to_string(),
+            capabilities: std::collections::HashSet::new(),
+            failed_attempts: 0,
+        };
+        
+        self.network_state.add_peer(peer_info).await;
     }
 }

@@ -186,13 +186,13 @@ impl ShardRouter {
 }
 
 // Shard yönetimi için trait
-pub trait ShardManager {
+pub trait IShardManager {
     fn get_shard_info(&self, shard_id: u32) -> Option<Shard>;
     fn update_shard_state(&mut self, shard_id: u32, new_state: String) -> Result<(), String>;
     fn validate_cross_shard_transaction(&self, transaction: &Transaction) -> bool;
 }
 
-impl ShardManager for ShardRouter {
+impl IShardManager for ShardRouter {
     fn get_shard_info(&self, shard_id: u32) -> Option<Shard> {
         // TODO: Implement actual shard info retrieval
         None
@@ -209,13 +209,12 @@ impl ShardManager for ShardRouter {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ShardManager {
+pub struct ShardManagerData {
     pub shards: HashMap<ShardId, Shard>,
     pub total_shards: u32,
 }
 
-impl ShardManager {
+impl ShardManagerData {
     pub fn new(total_shards: u32) -> Self {
         let mut shards = HashMap::new();
         for i in 0..total_shards {
