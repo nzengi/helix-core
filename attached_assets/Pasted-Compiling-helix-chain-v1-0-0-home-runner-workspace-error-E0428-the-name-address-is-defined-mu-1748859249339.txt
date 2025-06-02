@@ -1,0 +1,2206 @@
+Compiling helix-chain v1.0.0 (/home/runner/workspace)
+error[E0428]: the name `address` is defined multiple times
+ --> src/lib.rs:6:1
+  |
+2 | pub mod address;
+  | ---------------- previous definition of the module `address` here
+...
+6 | pub mod address;
+  | ^^^^^^^^^^^^^^^^ `address` redefined here
+  |
+  = note: `address` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `api` is defined multiple times
+ --> src/lib.rs:7:1
+  |
+3 | pub mod api;
+  | ------------ previous definition of the module `api` here
+...
+7 | pub mod api;
+  | ^^^^^^^^^^^^ `api` redefined here
+  |
+  = note: `api` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `compression` is defined multiple times
+ --> src/lib.rs:8:1
+  |
+4 | pub mod compression;
+  | -------------------- previous definition of the module `compression` here
+...
+8 | pub mod compression;
+  | ^^^^^^^^^^^^^^^^^^^^ `compression` redefined here
+  |
+  = note: `compression` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `config` is defined multiple times
+ --> src/lib.rs:9:1
+  |
+5 | pub mod config;
+  | --------------- previous definition of the module `config` here
+...
+9 | pub mod config;
+  | ^^^^^^^^^^^^^^^ `config` redefined here
+  |
+  = note: `config` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `crypto` is defined multiple times
+  --> src/lib.rs:32:1
+   |
+11 | pub mod crypto;
+   | --------------- previous definition of the module `crypto` here
+...
+32 | pub mod crypto;
+   | ^^^^^^^^^^^^^^^ `crypto` redefined here
+   |
+   = note: `crypto` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `database` is defined multiple times
+  --> src/lib.rs:33:1
+   |
+12 | pub mod database;
+   | ----------------- previous definition of the module `database` here
+...
+33 | pub mod database;
+   | ^^^^^^^^^^^^^^^^^ `database` redefined here
+   |
+   = note: `database` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `delegation` is defined multiple times
+  --> src/lib.rs:34:1
+   |
+13 | pub mod delegation;
+   | ------------------- previous definition of the module `delegation` here
+...
+34 | pub mod delegation;
+   | ^^^^^^^^^^^^^^^^^^^ `delegation` redefined here
+   |
+   = note: `delegation` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `gas` is defined multiple times
+  --> src/lib.rs:35:1
+   |
+14 | pub mod gas;
+   | ------------ previous definition of the module `gas` here
+...
+35 | pub mod gas;
+   | ^^^^^^^^^^^^ `gas` redefined here
+   |
+   = note: `gas` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `genesis` is defined multiple times
+  --> src/lib.rs:36:1
+   |
+15 | pub mod genesis;
+   | ---------------- previous definition of the module `genesis` here
+...
+36 | pub mod genesis;
+   | ^^^^^^^^^^^^^^^^ `genesis` redefined here
+   |
+   = note: `genesis` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `governance` is defined multiple times
+  --> src/lib.rs:37:1
+   |
+16 | pub mod governance;
+   | ------------------- previous definition of the module `governance` here
+...
+37 | pub mod governance;
+   | ^^^^^^^^^^^^^^^^^^^ `governance` redefined here
+   |
+   = note: `governance` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `logging` is defined multiple times
+  --> src/lib.rs:38:1
+   |
+17 | pub mod logging;
+   | ---------------- previous definition of the module `logging` here
+...
+38 | pub mod logging;
+   | ^^^^^^^^^^^^^^^^ `logging` redefined here
+   |
+   = note: `logging` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `metrics` is defined multiple times
+  --> src/lib.rs:39:1
+   |
+18 | pub mod metrics;
+   | ---------------- previous definition of the module `metrics` here
+...
+39 | pub mod metrics;
+   | ^^^^^^^^^^^^^^^^ `metrics` redefined here
+   |
+   = note: `metrics` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `network` is defined multiple times
+  --> src/lib.rs:40:1
+   |
+19 | pub mod network;
+   | ---------------- previous definition of the module `network` here
+...
+40 | pub mod network;
+   | ^^^^^^^^^^^^^^^^ `network` redefined here
+   |
+   = note: `network` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `network_manager` is defined multiple times
+  --> src/lib.rs:41:1
+   |
+20 | pub mod network_manager;
+   | ------------------------ previous definition of the module `network_manager` here
+...
+41 | pub mod network_manager;
+   | ^^^^^^^^^^^^^^^^^^^^^^^^ `network_manager` redefined here
+   |
+   = note: `network_manager` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `oracle` is defined multiple times
+  --> src/lib.rs:42:1
+   |
+21 | pub mod oracle;
+   | --------------- previous definition of the module `oracle` here
+...
+42 | pub mod oracle;
+   | ^^^^^^^^^^^^^^^ `oracle` redefined here
+   |
+   = note: `oracle` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `privacy` is defined multiple times
+  --> src/lib.rs:43:1
+   |
+22 | pub mod privacy;
+   | ---------------- previous definition of the module `privacy` here
+...
+43 | pub mod privacy;
+   | ^^^^^^^^^^^^^^^^ `privacy` redefined here
+   |
+   = note: `privacy` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `security` is defined multiple times
+  --> src/lib.rs:44:1
+   |
+23 | pub mod security;
+   | ----------------- previous definition of the module `security` here
+...
+44 | pub mod security;
+   | ^^^^^^^^^^^^^^^^^ `security` redefined here
+   |
+   = note: `security` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `security_audit` is defined multiple times
+  --> src/lib.rs:45:1
+   |
+24 | pub mod security_audit;
+   | ----------------------- previous definition of the module `security_audit` here
+...
+45 | pub mod security_audit;
+   | ^^^^^^^^^^^^^^^^^^^^^^^ `security_audit` redefined here
+   |
+   = note: `security_audit` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `sharding` is defined multiple times
+  --> src/lib.rs:46:1
+   |
+25 | pub mod sharding;
+   | ----------------- previous definition of the module `sharding` here
+...
+46 | pub mod sharding;
+   | ^^^^^^^^^^^^^^^^^ `sharding` redefined here
+   |
+   = note: `sharding` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `smart_contract` is defined multiple times
+  --> src/lib.rs:47:1
+   |
+26 | pub mod smart_contract;
+   | ----------------------- previous definition of the module `smart_contract` here
+...
+47 | pub mod smart_contract;
+   | ^^^^^^^^^^^^^^^^^^^^^^^ `smart_contract` redefined here
+   |
+   = note: `smart_contract` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `state` is defined multiple times
+  --> src/lib.rs:48:1
+   |
+27 | pub mod state;
+   | -------------- previous definition of the module `state` here
+...
+48 | pub mod state;
+   | ^^^^^^^^^^^^^^ `state` redefined here
+   |
+   = note: `state` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `storage` is defined multiple times
+  --> src/lib.rs:49:1
+   |
+28 | pub mod storage;
+   | ---------------- previous definition of the module `storage` here
+...
+49 | pub mod storage;
+   | ^^^^^^^^^^^^^^^^ `storage` redefined here
+   |
+   = note: `storage` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `thermal` is defined multiple times
+  --> src/lib.rs:50:1
+   |
+29 | pub mod thermal;
+   | ---------------- previous definition of the module `thermal` here
+...
+50 | pub mod thermal;
+   | ^^^^^^^^^^^^^^^^ `thermal` redefined here
+   |
+   = note: `thermal` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `token` is defined multiple times
+  --> src/lib.rs:51:1
+   |
+30 | pub mod token;
+   | -------------- previous definition of the module `token` here
+...
+51 | pub mod token;
+   | ^^^^^^^^^^^^^^ `token` redefined here
+   |
+   = note: `token` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `wallet` is defined multiple times
+  --> src/lib.rs:52:1
+   |
+31 | pub mod wallet;
+   | --------------- previous definition of the module `wallet` here
+...
+52 | pub mod wallet;
+   | ^^^^^^^^^^^^^^^ `wallet` redefined here
+   |
+   = note: `wallet` must be defined only once in the type namespace of this module
+
+error[E0252]: the name `fs` is defined multiple times
+  --> src/config.rs:58:5
+   |
+2  | use std::fs;
+   |     ------- previous import of the module `fs` here
+...
+58 | use std::fs;
+   |     ^^^^^^^ `fs` reimported here
+   |
+   = note: `fs` must be defined only once in the type namespace of this module
+
+error[E0252]: the name `Serialize` is defined multiple times
+  --> src/config.rs:59:13
+   |
+1  | use serde::{Deserialize, Serialize};
+   |                          --------- previous import of the trait `Serialize` here
+...
+59 | use serde::{Serialize, Deserialize};
+   |             ^^^^^^^^^--
+   |             |
+   |             `Serialize` reimported here
+   |             help: remove unnecessary import
+   |
+   = note: `Serialize` must be defined only once in the type namespace of this module
+
+error[E0252]: the name `Deserialize` is defined multiple times
+  --> src/config.rs:59:24
+   |
+1  | use serde::{Deserialize, Serialize};
+   |             ----------- previous import of the trait `Deserialize` here
+...
+59 | use serde::{Serialize, Deserialize};
+   |                        ^^^^^^^^^^^ `Deserialize` reimported here
+   |
+   = note: `Deserialize` must be defined only once in the type namespace of this module
+
+error[E0252]: the name `Result` is defined multiple times
+  --> src/config.rs:60:5
+   |
+3  | use anyhow::Result;
+   |     -------------- previous import of the type `Result` here
+...
+60 | use anyhow::Result;
+   |     ^^^^^^^^^^^^^^ `Result` reimported here
+   |
+   = note: `Result` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `Config` is defined multiple times
+  --> src/config.rs:63:1
+   |
+6  | pub struct Config {
+   | ----------------- previous definition of the type `Config` here
+...
+63 | pub struct Config {
+   | ^^^^^^^^^^^^^^^^^ `Config` redefined here
+   |
+   = note: `Config` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `NetworkConfig` is defined multiple times
+  --> src/config.rs:71:1
+   |
+16 | pub struct NetworkConfig {
+   | ------------------------ previous definition of the type `NetworkConfig` here
+...
+71 | pub struct NetworkConfig {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^ `NetworkConfig` redefined here
+   |
+   = note: `NetworkConfig` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `ConsensusConfig` is defined multiple times
+  --> src/config.rs:78:1
+   |
+24 | pub struct ConsensusConfig {
+   | -------------------------- previous definition of the type `ConsensusConfig` here
+...
+78 | pub struct ConsensusConfig {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^ `ConsensusConfig` redefined here
+   |
+   = note: `ConsensusConfig` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `ApiConfig` is defined multiple times
+  --> src/config.rs:85:1
+   |
+39 | pub struct ApiConfig {
+   | -------------------- previous definition of the type `ApiConfig` here
+...
+85 | pub struct ApiConfig {
+   | ^^^^^^^^^^^^^^^^^^^^ `ApiConfig` redefined here
+   |
+   = note: `ApiConfig` must be defined only once in the type namespace of this module
+
+error[E0428]: the name `DatabaseConfig` is defined multiple times
+  --> src/config.rs:92:1
+   |
+32 | pub struct DatabaseConfig {
+   | ------------------------- previous definition of the type `DatabaseConfig` here
+...
+92 | pub struct DatabaseConfig {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^ `DatabaseConfig` redefined here
+   |
+   = note: `DatabaseConfig` must be defined only once in the type namespace of this module
+
+error[E0255]: the name `Account` is defined multiple times
+ --> src/genesis.rs:7:1
+  |
+4 | use crate::state::Account;
+  |     --------------------- previous import of the type `Account` here
+...
+7 | pub struct Account {
+  | ^^^^^^^^^^^^^^^^^^ `Account` redefined here
+  |
+  = note: `Account` must be defined only once in the type namespace of this module
+help: you can use `as` to change the binding name of the import
+  |
+4 | use crate::state::Account as OtherAccount;
+  |                           +++++++++++++++
+
+error[E0432]: unresolved import `crate::state::ChainStatus`
+  --> src/api.rs:16:29
+   |
+16 | use crate::state::{Account, ChainStatus};
+   |                             ^^^^^^^^^^^
+   |                             |
+   |                             no `ChainStatus` in `state`
+   |                             help: a similar name exists in the module: `ChainState`
+
+error[E0432]: unresolved import `crate::config::LoggingConfig`
+  --> src/logging.rs:13:5
+   |
+13 | use crate::config::LoggingConfig;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no `LoggingConfig` in `config`
+
+error[E0432]: unresolved imports `crate::state::ChainInfo`, `crate::state::SyncStatus`
+   --> src/lib.rs:181:33
+    |
+181 | pub use crate::state::{Account, ChainInfo, SyncStatus};
+    |                                 ^^^^^^^^^  ^^^^^^^^^^ no `SyncStatus` in `state`
+    |                                 |
+    |                                 no `ChainInfo` in `state`
+
+warning: unused import: `http::StatusCode`
+ --> src/api.rs:9:5
+  |
+9 |     http::StatusCode,
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+warning: unused import: `anyhow::Result`
+  --> src/api.rs:12:5
+   |
+12 | use anyhow::Result;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused import: `std::fs`
+  --> src/config.rs:58:5
+   |
+58 | use std::fs;
+   |     ^^^^^^^
+
+warning: unused imports: `Deserialize` and `Serialize`
+  --> src/config.rs:59:13
+   |
+59 | use serde::{Serialize, Deserialize};
+   |             ^^^^^^^^^  ^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+  --> src/config.rs:60:5
+   |
+60 | use anyhow::Result;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused import: `Instant`
+ --> src/delegation.rs:6:27
+  |
+6 | use std::time::{Duration, Instant};
+  |                           ^^^^^^^
+
+warning: unused imports: `SystemTime` and `UNIX_EPOCH`
+ --> src/gas.rs:1:17
+  |
+1 | use std::time::{SystemTime, UNIX_EPOCH};
+  |                 ^^^^^^^^^^  ^^^^^^^^^^
+
+warning: unused import: `crate::state::Account`
+ --> src/genesis.rs:4:5
+  |
+4 | use crate::state::Account;
+  |     ^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `HashSet`
+ --> src/governance.rs:5:33
+  |
+5 | use std::collections::{HashMap, HashSet};
+  |                                 ^^^^^^^
+
+warning: unused import: `Instant`
+ --> src/governance.rs:6:27
+  |
+6 | use std::time::{Duration, Instant};
+  |                           ^^^^^^^
+
+warning: unused imports: `Deserialize` and `Serialize`
+  --> src/logging.rs:12:13
+   |
+12 | use serde::{Serialize, Deserialize};
+   |             ^^^^^^^^^  ^^^^^^^^^^^
+
+warning: unused import: `Instant`
+ --> src/metrics.rs:6:27
+  |
+6 | use std::time::{Duration, Instant};
+  |                           ^^^^^^^
+
+warning: unused import: `tokio::time::sleep`
+ --> src/metrics.rs:7:5
+  |
+7 | use tokio::time::sleep;
+  |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `AtomicF64` and `AtomicU64`
+  --> src/metrics.rs:10:24
+   |
+10 | use prometheus::core::{AtomicF64, AtomicU64};
+   |                        ^^^^^^^^^  ^^^^^^^^^
+
+warning: unused import: `prometheus::proto::MetricFamily`
+  --> src/metrics.rs:11:5
+   |
+11 | use prometheus::proto::MetricFamily;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `IpAddr`
+ --> src/network.rs:3:16
+  |
+3 | use std::net::{IpAddr, SocketAddr};
+  |                ^^^^^^
+
+warning: unused import: `tokio::time`
+ --> src/network.rs:6:5
+  |
+6 | use tokio::time;
+  |     ^^^^^^^^^^^
+
+warning: unused imports: `Block` and `Transaction`
+ --> src/network.rs:8:24
+  |
+8 | use crate::consensus::{Block, Transaction};
+  |                        ^^^^^  ^^^^^^^^^^^
+
+warning: unused import: `Instant`
+ --> src/oracle.rs:6:27
+  |
+6 | use std::time::{Duration, Instant};
+  |                           ^^^^^^^
+
+warning: unused import: `tokio::time::sleep`
+ --> src/oracle.rs:8:5
+  |
+8 | use tokio::time::sleep;
+  |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Duration` and `Instant`
+ --> src/privacy.rs:6:17
+  |
+6 | use std::time::{Duration, Instant};
+  |                 ^^^^^^^^  ^^^^^^^
+
+warning: unused imports: `Identity`, `IsIdentity`, `RistrettoPoint`, and `constants::RISTRETTO_BASEPOINT_POINT`
+  --> src/privacy.rs:10:5
+   |
+10 |     constants::RISTRETTO_BASEPOINT_POINT,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+11 |     ristretto::{RistrettoPoint, CompressedRistretto},
+   |                 ^^^^^^^^^^^^^^
+12 |     scalar::Scalar,
+13 |     traits::{Identity, IsIdentity},
+   |              ^^^^^^^^  ^^^^^^^^^^
+
+warning: unused import: `SecretKey`
+ --> src/security.rs:6:28
+  |
+6 | use secp256k1::{PublicKey, SecretKey, Message};
+  |                            ^^^^^^^^^
+
+warning: unused import: `secp256k1::ecdsa::Signature`
+ --> src/security.rs:7:5
+  |
+7 | use secp256k1::ecdsa::Signature;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Instant`
+ --> src/security_audit.rs:6:27
+  |
+6 | use std::time::{Duration, Instant};
+  |                           ^^^^^^^
+
+warning: unused import: `Keccak256`
+ --> src/security_audit.rs:8:12
+  |
+8 | use sha3::{Keccak256, Digest};
+  |            ^^^^^^^^^
+
+warning: unused imports: `RngCore` and `rngs::OsRng`
+ --> src/security_audit.rs:9:12
+  |
+9 | use rand::{rngs::OsRng, RngCore};
+  |            ^^^^^^^^^^^  ^^^^^^^
+
+warning: unused import: `Duration`
+ --> src/smart_contract.rs:6:17
+  |
+6 | use std::time::{Duration, Instant};
+  |                 ^^^^^^^^
+
+warning: unused import: `Keccak256`
+ --> src/state.rs:5:20
+  |
+5 | use sha3::{Digest, Keccak256};
+  |                    ^^^^^^^^^
+
+warning: unused import: `hex`
+ --> src/state.rs:6:5
+  |
+6 | use hex;
+  |     ^^^
+
+warning: unused import: `Path`
+ --> src/storage.rs:6:17
+  |
+6 | use std::path::{Path, PathBuf};
+  |                 ^^^^
+
+warning: unused import: `Instant`
+ --> src/storage.rs:7:27
+  |
+7 | use std::time::{Duration, Instant};
+  |                           ^^^^^^^
+
+warning: unused imports: `RngCore` and `rngs::OsRng`
+  --> src/storage.rs:10:12
+   |
+10 | use rand::{rngs::OsRng, RngCore};
+   |            ^^^^^^^^^^^  ^^^^^^^
+
+warning: unused import: `futures::StreamExt`
+  --> src/storage.rs:13:5
+   |
+13 | use futures::StreamExt;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `SystemExt` and `System`
+ --> src/thermal.rs:1:15
+  |
+1 | use sysinfo::{System, SystemExt, ComponentExt};
+  |               ^^^^^^  ^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+ --> src/thermal.rs:2:5
+  |
+2 | use std::sync::Arc;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `tokio::sync::Mutex`
+ --> src/thermal.rs:3:5
+  |
+3 | use tokio::sync::Mutex;
+  |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `Duration` and `Instant`
+ --> src/token.rs:6:17
+  |
+6 | use std::time::{Duration, Instant};
+  |                 ^^^^^^^^  ^^^^^^^
+
+warning: unused import: `std::str::FromStr`
+ --> src/token.rs:8:5
+  |
+8 | use std::str::FromStr;
+  |     ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `RngCore` and `rngs::OsRng`
+ --> src/wallet.rs:8:12
+  |
+8 | use rand::{rngs::OsRng, RngCore};
+  |            ^^^^^^^^^^^  ^^^^^^^
+
+warning: unused import: `KeyPair`
+  --> src/wallet.rs:12:36
+   |
+12 | use crate::crypto::{CryptoManager, KeyPair};
+   |                                    ^^^^^^^
+
+error[E0119]: conflicting implementations of trait `Clone` for type `config::Config`
+  --> src/config.rs:62:17
+   |
+5  | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ----- first implementation here
+...
+62 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ^^^^^ conflicting implementation for `config::Config`
+   |
+   = note: this error originates in the derive macro `Clone` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Clone` for type `config::NetworkConfig`
+  --> src/config.rs:70:17
+   |
+15 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ----- first implementation here
+...
+70 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ^^^^^ conflicting implementation for `config::NetworkConfig`
+   |
+   = note: this error originates in the derive macro `Clone` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Clone` for type `config::ConsensusConfig`
+  --> src/config.rs:77:17
+   |
+23 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ----- first implementation here
+...
+77 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ^^^^^ conflicting implementation for `config::ConsensusConfig`
+   |
+   = note: this error originates in the derive macro `Clone` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Clone` for type `config::ApiConfig`
+  --> src/config.rs:84:17
+   |
+38 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ----- first implementation here
+...
+84 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ^^^^^ conflicting implementation for `config::ApiConfig`
+   |
+   = note: this error originates in the derive macro `Clone` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Clone` for type `config::DatabaseConfig`
+  --> src/config.rs:91:17
+   |
+31 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ----- first implementation here
+...
+91 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ^^^^^ conflicting implementation for `config::DatabaseConfig`
+   |
+   = note: this error originates in the derive macro `Clone` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+   --> src/lib.rs:138:51
+    |
+138 |         if !self.chain_state.validate_transaction(&transaction).await? {
+    |                              -------------------- ^^^^^^^^^^^^ expected `state::Transaction`, found `Transaction`
+    |                              |
+    |                              arguments to this method are incorrect
+    |
+    = note: `Transaction` and `state::Transaction` have similar names, but are actually distinct types
+note: `Transaction` is defined in module `crate::consensus` of the current crate
+   --> src/consensus.rs:34:1
+    |
+34  | pub struct Transaction {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+note: `state::Transaction` is defined in module `crate::state` of the current crate
+   --> src/state.rs:34:1
+    |
+34  | pub struct Transaction {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+note: method defined here
+   --> src/state.rs:140:18
+    |
+140 | ...ync fn validate_transaction(&self, transaction: &Transaction) -> Res...
+    |           ^^^^^^^^^^^^^^^^^^^^        -------------------------
+
+error[E0308]: mismatched types
+   --> src/lib.rs:143:50
+    |
+143 | ...in_state.add_pending_transaction(transaction.clone()).await?;
+    |             ----------------------- ^^^^^^^^^^^^^^^^^^^ expected `state::Transaction`, found `Transaction`
+    |             |
+    |             arguments to this method are incorrect
+    |
+    = note: `Transaction` and `state::Transaction` have similar names, but are actually distinct types
+note: `Transaction` is defined in module `crate::consensus` of the current crate
+   --> src/consensus.rs:34:1
+    |
+34  | pub struct Transaction {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+note: `state::Transaction` is defined in module `crate::state` of the current crate
+   --> src/state.rs:34:1
+    |
+34  | pub struct Transaction {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+note: method defined here
+   --> src/state.rs:159:18
+    |
+159 | ...nc fn add_pending_transaction(&self, transaction: Transaction) -> Re...
+    |          ^^^^^^^^^^^^^^^^^^^^^^^        ------------------------
+
+error[E0599]: no method named `get_pending_transactions` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/lib.rs:154:53
+    |
+154 | ...ns = self.chain_state.get_pending_transactions().await?;
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `add_pending_transaction` with a similar name, but with different arguments
+   --> src/state.rs:159:5
+    |
+159 |     pub async fn add_pending_transaction(&self, transaction: Transaction) -> Result<(), StateError...
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0599]: no method named `clear_pending_transactions` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/lib.rs:158:30
+    |
+158 |             self.chain_state.clear_pending_transactions().await?;
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `add_pending_transaction` with a similar name, but with different arguments
+   --> src/state.rs:159:5
+    |
+159 |     pub async fn add_pending_transaction(&self, transaction: Transaction) -> Result<(), StateError...
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0119]: conflicting implementations of trait `std::fmt::Debug` for type `config::Config`
+  --> src/config.rs:62:10
+   |
+5  | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ----- first implementation here
+...
+62 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ^^^^^ conflicting implementation for `config::Config`
+   |
+   = note: this error originates in the derive macro `Debug` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `std::fmt::Debug` for type `config::NetworkConfig`
+  --> src/config.rs:70:10
+   |
+15 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ----- first implementation here
+...
+70 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ^^^^^ conflicting implementation for `config::NetworkConfig`
+   |
+   = note: this error originates in the derive macro `Debug` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `std::fmt::Debug` for type `config::ConsensusConfig`
+  --> src/config.rs:77:10
+   |
+23 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ----- first implementation here
+...
+77 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ^^^^^ conflicting implementation for `config::ConsensusConfig`
+   |
+   = note: this error originates in the derive macro `Debug` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `std::fmt::Debug` for type `config::ApiConfig`
+  --> src/config.rs:84:10
+   |
+38 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ----- first implementation here
+...
+84 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ^^^^^ conflicting implementation for `config::ApiConfig`
+   |
+   = note: this error originates in the derive macro `Debug` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `std::fmt::Debug` for type `config::DatabaseConfig`
+  --> src/config.rs:91:10
+   |
+31 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ----- first implementation here
+...
+91 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |          ^^^^^ conflicting implementation for `config::DatabaseConfig`
+   |
+   = note: this error originates in the derive macro `Debug` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Serialize` for type `config::Config`
+  --> src/config.rs:62:24
+   |
+5  | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        --------- first implementation here
+...
+62 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        ^^^^^^^^^ conflicting implementation for `config::Config`
+   |
+   = note: this error originates in the derive macro `Serialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Serialize` for type `config::NetworkConfig`
+  --> src/config.rs:70:24
+   |
+15 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        --------- first implementation here
+...
+70 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        ^^^^^^^^^ conflicting implementation for `config::NetworkConfig`
+   |
+   = note: this error originates in the derive macro `Serialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Serialize` for type `config::ConsensusConfig`
+  --> src/config.rs:77:24
+   |
+23 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        --------- first implementation here
+...
+77 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        ^^^^^^^^^ conflicting implementation for `config::ConsensusConfig`
+   |
+   = note: this error originates in the derive macro `Serialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Serialize` for type `config::ApiConfig`
+  --> src/config.rs:84:24
+   |
+38 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        --------- first implementation here
+...
+84 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        ^^^^^^^^^ conflicting implementation for `config::ApiConfig`
+   |
+   = note: this error originates in the derive macro `Serialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Serialize` for type `config::DatabaseConfig`
+  --> src/config.rs:91:24
+   |
+31 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        --------- first implementation here
+...
+91 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                        ^^^^^^^^^ conflicting implementation for `config::DatabaseConfig`
+   |
+   = note: this error originates in the derive macro `Serialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Deserialize<'_>` for type `config::Config`
+  --> src/config.rs:62:35
+   |
+5  | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ----------- first implementation here
+...
+62 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ^^^^^^^^^^^ conflicting implementation for `config::Config`
+   |
+   = note: this error originates in the derive macro `Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Deserialize<'_>` for type `config::NetworkConfig`
+  --> src/config.rs:70:35
+   |
+15 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ----------- first implementation here
+...
+70 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ^^^^^^^^^^^ conflicting implementation for `config::NetworkConfig`
+   |
+   = note: this error originates in the derive macro `Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Deserialize<'_>` for type `config::ConsensusConfig`
+  --> src/config.rs:77:35
+   |
+23 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ----------- first implementation here
+...
+77 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ^^^^^^^^^^^ conflicting implementation for `config::ConsensusConfig`
+   |
+   = note: this error originates in the derive macro `Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Deserialize<'_>` for type `config::ApiConfig`
+  --> src/config.rs:84:35
+   |
+38 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ----------- first implementation here
+...
+84 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ^^^^^^^^^^^ conflicting implementation for `config::ApiConfig`
+   |
+   = note: this error originates in the derive macro `Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0119]: conflicting implementations of trait `Deserialize<'_>` for type `config::DatabaseConfig`
+  --> src/config.rs:91:35
+   |
+31 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ----------- first implementation here
+...
+91 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ^^^^^^^^^^^ conflicting implementation for `config::DatabaseConfig`
+   |
+   = note: this error originates in the derive macro `Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `get_status` found for struct `Arc<state::ChainState>` in the current scope
+  --> src/api.rs:94:34
+   |
+94 |     match state.node.chain_state.get_status().await {
+   |                                  ^^^^^^^^^^ method not found in `Arc<ChainState>`
+
+warning: unused variable: `state`
+   --> src/api.rs:104:11
+    |
+104 |     State(state): State<ApiState>,
+    |           ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: unused variable: `pagination`
+   --> src/api.rs:105:11
+    |
+105 |     Query(pagination): Query<PaginationQuery>,
+    |           ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_pagination`
+
+error[E0599]: no method named `get_block` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/api.rs:115:34
+    |
+115 |     match state.node.chain_state.get_block(&hash).await {
+    |                                  ^^^^^^^^^
+    |
+help: there is a method `get_balance` with a similar name
+    |
+115 |     match state.node.chain_state.get_balance(&hash).await {
+    |                                  ~~~~~~~~~~~
+
+warning: unused variable: `state`
+   --> src/api.rs:126:11
+    |
+126 |     State(state): State<ApiState>,
+    |           ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+warning: unused variable: `pagination`
+   --> src/api.rs:127:11
+    |
+127 |     Query(pagination): Query<PaginationQuery>,
+    |           ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_pagination`
+
+error[E0599]: no method named `get_transaction` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/api.rs:137:34
+    |
+137 |     match state.node.chain_state.get_transaction(&hash).await {
+    |                                  ^^^^^^^^^^^^^^^
+    |
+help: there is a method `apply_transaction` with a similar name
+    |
+137 |     match state.node.chain_state.apply_transaction(&hash).await {
+    |                                  ~~~~~~~~~~~~~~~~~
+
+warning: unused variable: `state`
+   --> src/api.rs:148:11
+    |
+148 |     State(state): State<ApiState>,
+    |           ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+error[E0308]: mismatched types
+   --> src/api.rs:173:9
+    |
+172 |     match state.node.chain_state.get_account(&address).await {
+    |           -------------------------------------------------- this expression has type `std::option::Option<state::Account>`
+173 |         Ok(Some(account)) => Json(ApiResponse::success(account)),
+    |         ^^^^^^^^^^^^^^^^^ expected `Option<Account>`, found `Result<_, _>`
+    |
+    = note: expected enum `std::option::Option<state::Account>`
+               found enum `Result<_, _>`
+
+error[E0308]: mismatched types
+   --> src/api.rs:174:9
+    |
+172 |     match state.node.chain_state.get_account(&address).await {
+    |           -------------------------------------------------- this expression has type `std::option::Option<state::Account>`
+173 |         Ok(Some(account)) => Json(ApiResponse::success(account)),
+174 |         Ok(None) => Json(ApiResponse::<Account>::error("Account not fou...
+    |         ^^^^^^^^ expected `Option<Account>`, found `Result<_, _>`
+    |
+    = note: expected enum `std::option::Option<state::Account>`
+               found enum `Result<_, _>`
+
+error[E0308]: mismatched types
+   --> src/api.rs:175:9
+    |
+172 |     match state.node.chain_state.get_account(&address).await {
+    |           -------------------------------------------------- this expression has type `std::option::Option<state::Account>`
+...
+175 |         Err(e) => {
+    |         ^^^^^^ expected `Option<Account>`, found `Result<_, _>`
+    |
+    = note: expected enum `std::option::Option<state::Account>`
+               found enum `Result<_, _>`
+
+error[E0599]: no method named `get_account_balance` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/api.rs:186:34
+    |
+186 |     match state.node.chain_state.get_account_balance(&address).await {
+    |                                  ^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `get_account` with a similar name
+    |
+186 |     match state.node.chain_state.get_account(&address).await {
+    |                                  ~~~~~~~~~~~
+
+warning: unused variable: `state`
+   --> src/api.rs:195:31
+    |
+195 | ... fn get_validators(State(state): State<ApiState>) -> impl IntoRespon...
+    |                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+error[E0609]: no field `consensus_manager` on type `Arc<HelixNode>`
+   --> src/api.rs:213:32
+    |
+213 |     let consensus = state.node.consensus_manager.lock().await;
+    |                                ^^^^^^^^^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `config`, `chain_state`, `consensus`, `crypto`, `network`, `is_running`
+
+warning: unused variable: `state`
+   --> src/api.rs:223:28
+    |
+223 | async fn get_metrics(State(state): State<ApiState>) -> impl IntoResponse {
+    |                            ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+warning: unused variable: `state`
+   --> src/api.rs:104:11
+    |
+104 |     State(state): State<ApiState>,
+    |           ^^^^^ help: if this is intentional, prefix it with an underscore: `_state`
+
+error[E0599]: no method named `execute_transactions` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/consensus.rs:160:26
+    |
+160 |         self.chain_state.execute_transactions(&block.transactions).await?;
+    |                          ^^^^^^^^^^^^^^^^^^^^ method not found in `Arc<ChainState>`
+
+error[E0599]: no method named `add_block` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/consensus.rs:163:26
+    |
+163 |         self.chain_state.add_block(&block).await?;
+    |                          ^^^^^^^^^ method not found in `Arc<ChainState>`
+
+error[E0599]: no method named `get_pending_transactions` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/consensus.rs:170:40
+    |
+170 | ...   let pending = self.chain_state.get_pending_transactions().await.u...
+    |                                      ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `add_pending_transaction` with a similar name, but with different arguments
+   --> src/state.rs:159:5
+    |
+159 |     pub async fn add_pending_transaction(&self, transaction: Transaction) -> Result<(), StateError...
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+   --> src/consensus.rs:211:54
+    |
+211 |             if self.chain_state.validate_transaction(&tx).await? {
+    |                                 -------------------- ^^^ expected `state::Transaction`, found `Transaction`
+    |                                 |
+    |                                 arguments to this method are incorrect
+    |
+    = note: `Transaction` and `state::Transaction` have similar names, but are actually distinct types
+note: `Transaction` is defined in module `crate::consensus` of the current crate
+   --> src/consensus.rs:34:1
+    |
+34  | pub struct Transaction {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+note: `state::Transaction` is defined in module `crate::state` of the current crate
+   --> src/state.rs:34:1
+    |
+34  | pub struct Transaction {
+    | ^^^^^^^^^^^^^^^^^^^^^^
+note: method defined here
+   --> src/state.rs:140:18
+    |
+140 | ...ync fn validate_transaction(&self, transaction: &Transaction) -> Res...
+    |           ^^^^^^^^^^^^^^^^^^^^        -------------------------
+
+error[E0599]: no method named `get_status` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/consensus.rs:267:39
+    |
+267 |         let status = self.chain_state.get_status().await?;
+    |                                       ^^^^^^^^^^ method not found in `Arc<ChainState>`
+
+error[E0599]: no method named `get_block` found for struct `Arc<state::ChainState>` in the current scope
+   --> src/consensus.rs:269:47
+    |
+269 | ...   if let Some(block) = self.chain_state.get_block(&status.best_bloc...
+    |                                             ^^^^^^^^^
+    |
+help: there is a method `get_balance` with a similar name
+    |
+269 |         if let Some(block) = self.chain_state.get_balance(&status.best_block_hash).await? {
+    |                                               ~~~~~~~~~~~
+
+error[E0308]: mismatched types
+   --> src/governance.rs:242:48
+    |
+242 |                 self.spend_treasury(recipient, amount, purpose).await?;
+    |                      --------------            ^^^^^^ expected `u128`, found `&u128`
+    |                      |
+    |                      arguments to this method are incorrect
+    |
+note: method defined here
+   --> src/governance.rs:345:14
+    |
+345 |     async fn spend_treasury(
+    |              ^^^^^^^^^^^^^^
+...
+348 |         amount: u128,
+    |         ------------
+help: consider dereferencing the borrow
+    |
+242 |                 self.spend_treasury(recipient, *amount, purpose).await?;
+    |                                                +
+
+warning: unused variable: `no_votes`
+   --> src/governance.rs:278:25
+    |
+278 |         let (yes_votes, no_votes, total_votes) = self.calculate_votes(p...
+    |                         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_no_votes`
+
+warning: unused variable: `contract_address`
+   --> src/governance.rs:319:9
+    |
+319 |         contract_address: &str,
+    |         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_contract_address`
+
+warning: unused variable: `new_version`
+   --> src/governance.rs:320:9
+    |
+320 |         new_version: &str,
+    |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_new_version`
+
+warning: unused variable: `upgrade_data`
+   --> src/governance.rs:321:9
+    |
+321 |         upgrade_data: &[u8],
+    |         ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_upgrade_data`
+
+warning: unused variable: `action_type`
+   --> src/governance.rs:329:9
+    |
+329 |         action_type: &str,
+    |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_action_type`
+
+warning: unused variable: `action_data`
+   --> src/governance.rs:330:9
+    |
+330 |         action_data: &[u8],
+    |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_action_data`
+
+warning: unused variable: `validators`
+   --> src/governance.rs:338:9
+    |
+338 |         validators: &[String],
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_validators`
+
+warning: unused variable: `powers`
+   --> src/governance.rs:339:9
+    |
+339 |         powers: &[u64],
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_powers`
+
+warning: unused variable: `recipient`
+   --> src/governance.rs:347:9
+    |
+347 |         recipient: &str,
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_recipient`
+
+warning: unused variable: `amount`
+   --> src/governance.rs:348:9
+    |
+348 |         amount: u128,
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_amount`
+
+warning: unused variable: `purpose`
+   --> src/governance.rs:349:9
+    |
+349 |         purpose: &str,
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_purpose`
+
+error[E0308]: mismatched types
+   --> src/metrics.rs:138:21
+    |
+138 |                     prometheus::opts!(&config.name, &config.description)
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `HistogramOpts`, found `Opts`
+    |
+    = note: this error originates in the macro `prometheus::opts` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: call `Into::into` on this expression to convert `Opts` into `HistogramOpts`
+    |
+138 |                     prometheus::opts!(&config.name, &config.description).into()
+    |                                                                         +++++++
+
+error[E0308]: mismatched types
+   --> src/metrics.rs:169:52
+    |
+169 | ... > config.retention_period {
+    |       ^^^^^^^^^^^^^^^^^^^^^^^ expected `TimeDelta`, found `Duration`
+
+warning: unused variable: `duration`
+   --> src/metrics.rs:244:84
+    |
+244 | ...eshold, duration } = &alert.condition {
+    |            ^^^^^^^^ help: try ignoring the field: `duration: _`
+
+warning: unused variable: `connection`
+   --> src/network.rs:190:21
+    |
+190 |         if let Some(connection) = self.active_connections.remove(addres...
+    |                     ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_connection`
+
+warning: unused variable: `peer`
+   --> src/network.rs:131:46
+    |
+131 | ...d_message_to_peer(&self, peer: &PeerInfo, message: &[u8]) -> Result<...
+    |                             ^^^^ help: if this is intentional, prefix it with an underscore: `_peer`
+
+warning: unused variable: `message`
+   --> src/network.rs:131:63
+    |
+131 | ...(&self, peer: &PeerInfo, message: &[u8]) -> Result<(), String> {
+    |                             ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_message`
+
+error[E0308]: mismatched types
+   --> src/network_manager.rs:282:52
+    |
+282 | ...  self.send_message_to_peer(peer_id, NetworkMessage::Pong).await?;
+    |           --------------------          ^^^^^^^^^^^^^^^^^^^^ expected `&NetworkMessage`, found `NetworkMessage`
+    |           |
+    |           arguments to this method are incorrect
+    |
+note: method defined here
+   --> src/network_manager.rs:136:14
+    |
+136 | ...fn send_message_to_peer(&self, peer_id: &str, message: &NetworkMessage) -...
+    |       ^^^^^^^^^^^^^^^^^^^^                       ------------------------
+help: consider borrowing here
+    |
+282 |                 self.send_message_to_peer(peer_id, &NetworkMessage::Pong).await?;
+    |                                                    +
+
+error[E0277]: the trait bound `http::HeaderMap: TryFrom<HashMap<std::string::String, std::string::String>>` is not satisfied
+   --> src/oracle.rs:241:45
+    |
+241 | ...e.headers.clone().try_into().map_err(|e| OracleError::HttpError(form...
+    |                      ^^^^^^^^ unsatisfied trait bound
+    |
+    = help: the trait `From<HashMap<std::string::String, std::string::String>>` is not implemented for `http::HeaderMap`
+    = note: required for `HashMap<std::string::String, std::string::String>` to implement `Into<http::HeaderMap>`
+    = note: required for `http::HeaderMap` to implement `TryFrom<HashMap<std::string::String, std::string::String>>`
+    = note: required for `HashMap<std::string::String, std::string::String>` to implement `TryInto<http::HeaderMap>`
+
+warning: unused variable: `request_id`
+   --> src/oracle.rs:298:43
+    |
+298 | ...vrf_calculation(&self, request_id: u64, seed: [u8; 32]) -> Result<()...
+    |                           ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_request_id`
+
+warning: unused variable: `seed`
+   --> src/oracle.rs:298:60
+    |
+298 | ...(&self, request_id: u64, seed: [u8; 32]) -> Result<(), OracleError> {
+    |                             ^^^^ help: if this is intentional, prefix it with an underscore: `_seed`
+
+warning: unused variable: `metric`
+   --> src/security_audit.rs:245:48
+    |
+245 | ...teLimit { metric, threshold, window } => {
+    |              ^^^^^^ help: try ignoring the field: `metric: _`
+
+warning: unused variable: `threshold`
+   --> src/security_audit.rs:245:56
+    |
+245 | ...etric, threshold, window } => {
+    |           ^^^^^^^^^ help: try ignoring the field: `threshold: _`
+
+warning: unused variable: `window`
+   --> src/security_audit.rs:245:67
+    |
+245 | ...hreshold, window } => {
+    |              ^^^^^^ help: try ignoring the field: `window: _`
+
+warning: unused variable: `condition`
+   --> src/security_audit.rs:253:45
+    |
+253 |             SecurityRuleCondition::Custom { condition } => {
+    |                                             ^^^^^^^^^ help: try ignoring the field: `condition: _`
+
+warning: unused variable: `action`
+   --> src/security_audit.rs:282:42
+    |
+282 |             SecurityRuleAction::Custom { action } => {
+    |                                          ^^^^^^ help: try ignoring the field: `action: _`
+
+warning: unused variable: `shard`
+   --> src/sharding.rs:137:53
+    |
+137 | ...te(&self, shard_id: u32, shard: &Shard) -> Result<(), String> {
+    |                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_shard`
+
+error[E0599]: no method named `is_ok` found for struct `Vec<u8>` in the current scope
+   --> src/smart_contract.rs:109:29
+    |
+109 |             success: result.is_ok(),
+    |                             ^^^^^ method not found in `Vec<u8>`
+
+error[E0599]: no method named `unwrap_or_default` found for struct `Vec<u8>` in the current scope
+   --> src/smart_contract.rs:110:33
+    |
+110 |             return_data: result.unwrap_or_default(),
+    |                                 ^^^^^^^^^^^^^^^^^ method not found in `Vec<u8>`
+
+error[E0599]: no method named `err` found for struct `Vec<u8>` in the current scope
+   --> src/smart_contract.rs:112:27
+    |
+112 |             error: result.err().map(|e| e.to_string()),
+    |                           ^^^ method not found in `Vec<u8>`
+
+error[E0502]: cannot borrow `data_map` as mutable because it is also borrowed as immutable
+   --> src/storage.rs:189:9
+    |
+177 |         let stored_data = data_map.get(id).ok_or(StorageError::DataNotF...
+    |                           -------- immutable borrow occurs here
+...
+189 |         data_map.remove(id);
+    |         ^^^^^^^^ mutable borrow occurs here
+...
+192 |         self.update_stats(false, stored_data.size, stored_data.is_encry...
+    |                                  ---------------- immutable borrow later used here
+
+error[E0277]: the trait bound `Vec<u8>: Extend<axum::body::Bytes>` is not satisfied
+   --> src/storage.rs:217:36
+    |
+217 |         let data: Vec<u8> = stream.try_collect().await?;
+    |                                    ^^^^^^^^^^^ the trait `Extend<axum::body::Bytes>` is not implemented for `Vec<u8>`
+    |
+    = help: the following other types implement trait `Extend<A>`:
+              `Vec<T, A>` implements `Extend<&T>`
+              `Vec<T, A>` implements `Extend<T>`
+note: the method call chain might not have had the expected associated types
+   --> src/storage.rs:216:39
+    |
+216 |         let stream = self.ipfs_client.cat(hash);
+    |                      ---------------- ^^^^^^^^^ `TryStream::Ok` is `Bytes` here
+    |                      |
+    |                      this expression has type `IpfsClient`
+note: required by a bound in `futures::TryStreamExt::try_collect`
+   --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-util-0.3.31/src/stream/try_stream/mod.rs:603:33
+    |
+603 | ...collect<C: Default + Extend<Self::Ok>>(self) -> TryCollect<Self, C>
+    |                         ^^^^^^^^^^^^^^^^ required by this bound in `TryStreamExt::try_collect`
+
+error[E0277]: the trait bound `Vec<u8>: Extend<axum::body::Bytes>` is not satisfied
+   --> src/storage.rs:217:50
+    |
+217 |         let data: Vec<u8> = stream.try_collect().await?;
+    |                                                  ^^^^^ the trait `Extend<axum::body::Bytes>` is not implemented for `Vec<u8>`
+    |
+    = help: the following other types implement trait `Extend<A>`:
+              `Vec<T, A>` implements `Extend<&T>`
+              `Vec<T, A>` implements `Extend<T>`
+    = note: required for `TryCollect<Box<...>, ...>` to implement `futures::Future`
+    = note: the full name for the type has been written to '/home/runner/workspace/target/debug/deps/helix_chain-0f9ccbd85c8c6865.long-type-5347980859427340046.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+warning: use of deprecated associated function `secp256k1::Message::from_slice`: use from_digest_slice instead
+   --> src/wallet.rs:166:32
+    |
+166 |         let message = Message::from_slice(&tx_hash)?;
+    |                                ^^^^^^^^^^
+    |
+    = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated associated function `secp256k1::Message::from_slice`: use from_digest_slice instead
+   --> src/wallet.rs:166:32
+    |
+166 |         let message = Message::from_slice(&tx_hash)?;
+    |                                ^^^^^^^^^^
+
+error[E0592]: duplicate definitions with name `start`
+   --> src/network_manager.rs:159:5
+    |
+51  |     pub async fn start(&self) -> Result<()> {
+    |     --------------------------------------- other definition for `start`
+...
+159 |     pub async fn start(&self) -> Result<()> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ duplicate definitions for `start`
+
+error[E0592]: duplicate definitions with name `stop`
+   --> src/network_manager.rs:179:5
+    |
+72  |     pub async fn stop(&self) -> Result<()> {
+    |     -------------------------------------- other definition for `stop`
+...
+179 |     pub async fn stop(&self) -> Result<()> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ duplicate definitions for `stop`
+
+error[E0592]: duplicate definitions with name `connect_to_peer`
+   --> src/network_manager.rs:197:5
+    |
+105 |     pub async fn connect_to_peer(&self, address: &str) -> Result<()> {
+    |     ---------------------------------------------------------------- other definition for `connect_to_peer`
+...
+197 |     pub async fn connect_to_peer(&self, address: &str) -> Result<()> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ duplicate definitions for `connect_to_peer`
+
+error[E0592]: duplicate definitions with name `broadcast_message`
+   --> src/network_manager.rs:241:5
+    |
+122 |     pub async fn broadcast_message(&self, message: NetworkMessage) -> Result<()...
+    |     ---------------------------------------------------------------------------- other definition for `broadcast_message`
+...
+241 |     pub async fn broadcast_message(&self, message: NetworkMessage) -> Result<()...
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ duplicate definitions for `broadcast_message`
+
+error[E0592]: duplicate definitions with name `send_message_to_peer`
+   --> src/network_manager.rs:254:5
+    |
+136 |     async fn send_message_to_peer(&self, peer_id: &str, message: &NetworkMessage) -> Result<()> {
+    |     ------------------------------------------------------------------------------------------- other definition for `send_message_to_peer`
+...
+254 |     pub async fn send_message_to_peer(&self, peer_id: &str, message: NetworkMessage) -> Result<()...
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ duplicate definitions for `send_message_to_peer`
+
+error[E0592]: duplicate definitions with name `start_peer_discovery`
+   --> src/network_manager.rs:311:5
+    |
+80  |     async fn start_peer_discovery(&self) -> Result<()> {
+    |     -------------------------------------------------- other definition for `start_peer_discovery`
+...
+311 |     async fn start_peer_discovery(&self) -> Result<()> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ duplicate definitions for `start_peer_discovery`
+
+error[E0063]: missing fields `security` and `wallet` in initializer of `config::Config`
+  --> src/config.rs:62:17
+   |
+62 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ^ missing `security` and `wallet`
+   |
+   = note: this error originates in the derive macro `Clone` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0063]: missing fields `security` and `wallet` in initializer of `config::Config`
+  --> src/config.rs:63:12
+   |
+63 | pub struct Config {
+   |            ^^^^^^ missing `security` and `wallet`
+
+error[E0609]: no field `port` on type `&config::NetworkConfig`
+  --> src/config.rs:73:9
+   |
+73 |     pub port: u16,
+   |         ^^^^ unknown field
+   |
+   = note: available fields are: `listen_addr`, `listen_port`, `max_peers`, `bootstrap_nodes`
+
+error[E0560]: struct `config::NetworkConfig` has no field named `port`
+  --> src/config.rs:73:5
+   |
+73 |     pub port: u16,
+   |     ^^^^^^^^^^^^^ `config::NetworkConfig` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0308]: mismatched types
+  --> src/config.rs:70:35
+   |
+70 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ^^^^^^^^^^^ expected `usize`, found `u32`
+   |
+   = note: this error originates in the derive macro `Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0560]: struct `config::NetworkConfig` has no field named `port`
+  --> src/config.rs:73:9
+   |
+73 |     pub port: u16,
+   |         ^^^^ `config::NetworkConfig` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0063]: missing field `min_stake` in initializer of `config::ConsensusConfig`
+  --> src/config.rs:77:17
+   |
+77 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ^ missing `min_stake`
+   |
+   = note: this error originates in the derive macro `Clone` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+  --> src/config.rs:77:35
+   |
+77 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ^^^^^^^^^^^ expected `usize`, found `u32`
+   |
+   = note: this error originates in the derive macro `Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0063]: missing field `min_stake` in initializer of `config::ConsensusConfig`
+  --> src/config.rs:78:12
+   |
+78 | pub struct ConsensusConfig {
+   |            ^^^^^^^^^^^^^^^ missing `min_stake`
+
+error[E0609]: no field `host` on type `&config::ApiConfig`
+  --> src/config.rs:87:9
+   |
+87 |     pub host: String,
+   |         ^^^^ unknown field
+   |
+   = note: available fields are: `port`, `rate_limit_per_minute`, `max_request_size`
+
+error[E0560]: struct `config::ApiConfig` has no field named `host`
+  --> src/config.rs:87:5
+   |
+87 |     pub host: String,
+   |     ^^^^^^^^^^^^^^^^ `config::ApiConfig` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0560]: struct `config::ApiConfig` has no field named `host`
+  --> src/config.rs:87:9
+   |
+87 |     pub host: String,
+   |         ^^^^ `config::ApiConfig` does not have this field
+   |
+   = note: all struct fields are already assigned
+
+error[E0063]: missing field `timeout_seconds` in initializer of `config::DatabaseConfig`
+  --> src/config.rs:91:17
+   |
+91 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                 ^ missing `timeout_seconds`
+   |
+   = note: this error originates in the derive macro `Clone` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0063]: missing field `timeout_seconds` in initializer of `config::DatabaseConfig`
+  --> src/config.rs:92:12
+   |
+92 | pub struct DatabaseConfig {
+   |            ^^^^^^^^^^^^^^ missing `timeout_seconds`
+
+error[E0308]: mismatched types
+   --> src/consensus.rs:262:58
+    |
+262 |         let merkle_tree = crate::crypto::MerkleTree::new(tx_hashes);
+    |                           ------------------------------ ^^^^^^^^^ expected `Vec<Vec<u8>>`, found `Vec<String>`
+    |                           |
+    |                           arguments to this function are incorrect
+    |
+    = note: expected struct `Vec<Vec<u8>>`
+               found struct `Vec<std::string::String>`
+note: associated function defined here
+   --> src/crypto.rs:184:12
+    |
+184 |     pub fn new(data: Vec<Vec<u8>>) -> Self {
+    |            ^^^ ------------------
+
+error[E0308]: mismatched types
+  --> src/logging.rs:61:52
+   |
+61 |             block_height: counter!("block_height", "Current block height"),
+   |                           -------------------------^^^^^^^^^^^^^^^^^^^^^^-
+   |                           |                        |
+   |                           |                        expected `u64`, found `&str`
+   |                           arguments to this method are incorrect
+   |
+note: method defined here
+  --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/metrics-0.21.1/src/handles.rs:74:12
+   |
+74 |     pub fn increment(&self, value: u64) {
+   |            ^^^^^^^^^
+
+error[E0308]: mismatched types
+  --> src/logging.rs:62:62
+   |
+62 | ...unt: counter!("transaction_count", "Total transaction count"),
+   |         ------------------------------^^^^^^^^^^^^^^^^^^^^^^^^^-
+   |         |                             |
+   |         |                             expected `u64`, found `&str`
+   |         arguments to this method are incorrect
+   |
+note: method defined here
+  --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/metrics-0.21.1/src/handles.rs:74:12
+   |
+74 |     pub fn increment(&self, value: u64) {
+   |            ^^^^^^^^^
+
+error[E0277]: the trait bound `&str: IntoF64` is not satisfied
+   --> src/logging.rs:63:46
+    |
+63  |             peer_count: gauge!("peer_count", "Number of connected peers"),
+    |                         ---------------------^^^^^^^^^^^^^^^^^^^^^^^^^^^-
+    |                         |                    |
+    |                         |                    the trait `IntoF64` is not implemented for `&str`
+    |                         required by a bound introduced by this call
+    |
+    = help: the following other types implement trait `IntoF64`:
+              Duration
+              f64
+note: required by a bound in `metrics::Gauge::set`
+   --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/metrics-0.21.1/src/handles.rs:117:19
+    |
+117 |     pub fn set<T: IntoF64>(&self, value: T) {
+    |                   ^^^^^^^ required by this bound in `Gauge::set`
+
+error[E0277]: the trait bound `&str: IntoF64` is not satisfied
+   --> src/logging.rs:64:50
+    |
+64  |             block_time: histogram!("block_time", "Block creation time"),
+    |                         -------------------------^^^^^^^^^^^^^^^^^^^^^-
+    |                         |                        |
+    |                         |                        the trait `IntoF64` is not implemented for `&str`
+    |                         required by a bound introduced by this call
+    |
+    = help: the following other types implement trait `IntoF64`:
+              Duration
+              f64
+note: required by a bound in `__into_f64`
+   --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/metrics-0.21.1/src/common.rs:258:22
+    |
+258 | pub fn __into_f64<V: IntoF64>(value: V) -> f64 {
+    |                      ^^^^^^^ required by this bound in `__into_f64`
+
+error[E0277]: the trait bound `&str: IntoF64` is not satisfied
+   --> src/logging.rs:65:46
+    |
+65  |             shard_load: gauge!("shard_load", "Current shard load"),
+    |                         ---------------------^^^^^^^^^^^^^^^^^^^^-
+    |                         |                    |
+    |                         |                    the trait `IntoF64` is not implemented for `&str`
+    |                         required by a bound introduced by this call
+    |
+    = help: the following other types implement trait `IntoF64`:
+              Duration
+              f64
+note: required by a bound in `metrics::Gauge::set`
+   --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/metrics-0.21.1/src/handles.rs:117:19
+    |
+117 |     pub fn set<T: IntoF64>(&self, value: T) {
+    |                   ^^^^^^^ required by this bound in `Gauge::set`
+
+error[E0277]: the trait bound `&str: IntoF64` is not satisfied
+   --> src/logging.rs:66:60
+    |
+66  | ...tency: histogram!("network_latency", "Network latency"),
+    |           ------------------------------^^^^^^^^^^^^^^^^^-
+    |           |                             |
+    |           |                             the trait `IntoF64` is not implemented for `&str`
+    |           required by a bound introduced by this call
+    |
+    = help: the following other types implement trait `IntoF64`:
+              Duration
+              f64
+note: required by a bound in `__into_f64`
+   --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/metrics-0.21.1/src/common.rs:258:22
+    |
+258 | pub fn __into_f64<V: IntoF64>(value: V) -> f64 {
+    |                      ^^^^^^^ required by this bound in `__into_f64`
+
+error[E0599]: no function or associated item named `default` found for struct `RangeProof` in the current scope
+   --> src/privacy.rs:300:24
+    |
+300 |         Ok(RangeProof::default()) // TODO: Implement range proof creation
+    |                        ^^^^^^^ function or associated item not found in `RangeProof`
+    |
+note: if you're trying to build a new `RangeProof`, consider using `RangeProof::from_bytes` which returns `Result<RangeProof, ProofError>`
+   --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bulletproofs-4.0.0/src/range_proof/mod.rs:504:5
+    |
+504 |     pub fn from_bytes(slice: &[u8]) -> Result<RangeProof, ProofError> {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0277]: the trait bound `SecretKey: Serialize` is not satisfied
+    --> src/wallet.rs:15:24
+     |
+15   | #[derive(Debug, Clone, Serialize, Deserialize)]
+     |                        ^^^^^^^^^ the trait `Serialize` is not implemented for `SecretKey`
+...
+18   |     pub private_key: SecretKey,
+     |     --- required by a bound introduced by this call
+     |
+     = note: for local types consider adding `#[derive(serde::Serialize)]` to your `SecretKey` type
+     = note: for types from other crates check whether the crate offers a `serde` feature flag
+     = help: the following other types implement trait `Serialize`:
+               &'a T
+               &'a mut T
+               ()
+               (T,)
+               (T0, T1)
+               (T0, T1, T2)
+               (T0, T1, T2, T3)
+               (T0, T1, T2, T3, T4)
+             and 481 others
+note: required by a bound in `address::_::_serde::ser::SerializeStruct::serialize_field`
+    --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.219/src/ser/mod.rs:1866:21
+     |
+1864 |     fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> ...
+     |        --------------- required by a bound in this associated function
+1865 |     where
+1866 |         T: ?Sized + Serialize;
+     |                     ^^^^^^^^^ required by this bound in `SerializeStruct::serialize_field`
+     = note: this error originates in the derive macro `Serialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `secp256k1::PublicKey: Serialize` is not satisfied
+    --> src/wallet.rs:15:24
+     |
+15   | #[derive(Debug, Clone, Serialize, Deserialize)]
+     |                        ^^^^^^^^^ the trait `Serialize` is not implemented for `secp256k1::PublicKey`
+...
+19   |     pub public_key: PublicKey,
+     |     --- required by a bound introduced by this call
+     |
+     = note: for local types consider adding `#[derive(serde::Serialize)]` to your `secp256k1::PublicKey` type
+     = note: for types from other crates check whether the crate offers a `serde` feature flag
+     = help: the following other types implement trait `Serialize`:
+               &'a T
+               &'a mut T
+               ()
+               (T,)
+               (T0, T1)
+               (T0, T1, T2)
+               (T0, T1, T2, T3)
+               (T0, T1, T2, T3, T4)
+             and 481 others
+note: required by a bound in `address::_::_serde::ser::SerializeStruct::serialize_field`
+    --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.219/src/ser/mod.rs:1866:21
+     |
+1864 |     fn serialize_field<T>(&mut self, key: &'static str, value: &T) -> ...
+     |        --------------- required by a bound in this associated function
+1865 |     where
+1866 |         T: ?Sized + Serialize;
+     |                     ^^^^^^^^^ required by this bound in `SerializeStruct::serialize_field`
+     = note: this error originates in the derive macro `Serialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `SecretKey: Deserialize<'_>` is not satisfied
+    --> src/wallet.rs:18:22
+     |
+18   |     pub private_key: SecretKey,
+     |                      ^^^^^^^^^ the trait `Deserialize<'_>` is not implemented for `SecretKey`
+     |
+     = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `SecretKey` type
+     = note: for types from other crates check whether the crate offers a `serde` feature flag
+     = help: the following other types implement trait `Deserialize<'de>`:
+               &'a [u8]
+               &'a serde_json::value::RawValue
+               &'a std::path::Path
+               &'a str
+               ()
+               (T,)
+               (T0, T1)
+               (T0, T1, T2)
+             and 489 others
+note: required by a bound in `next_element`
+    --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.219/src/de/mod.rs:1732:12
+     |
+1730 |     fn next_element<T>(&mut self) -> Result<Option<T>, Self::Error>
+     |        ------------ required by a bound in this associated function
+1731 |     where
+1732 |         T: Deserialize<'de>,
+     |            ^^^^^^^^^^^^^^^^ required by this bound in `SeqAccess::next_element`
+
+error[E0277]: the trait bound `secp256k1::PublicKey: Deserialize<'_>` is not satisfied
+    --> src/wallet.rs:19:21
+     |
+19   |     pub public_key: PublicKey,
+     |                     ^^^^^^^^^ the trait `Deserialize<'_>` is not implemented for `secp256k1::PublicKey`
+     |
+     = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `secp256k1::PublicKey` type
+     = note: for types from other crates check whether the crate offers a `serde` feature flag
+     = help: the following other types implement trait `Deserialize<'de>`:
+               &'a [u8]
+               &'a serde_json::value::RawValue
+               &'a std::path::Path
+               &'a str
+               ()
+               (T,)
+               (T0, T1)
+               (T0, T1, T2)
+             and 489 others
+note: required by a bound in `next_element`
+    --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.219/src/de/mod.rs:1732:12
+     |
+1730 |     fn next_element<T>(&mut self) -> Result<Option<T>, Self::Error>
+     |        ------------ required by a bound in this associated function
+1731 |     where
+1732 |         T: Deserialize<'de>,
+     |            ^^^^^^^^^^^^^^^^ required by this bound in `SeqAccess::next_element`
+
+error[E0277]: the trait bound `SecretKey: Deserialize<'_>` is not satisfied
+    --> src/wallet.rs:18:22
+     |
+18   |     pub private_key: SecretKey,
+     |                      ^^^^^^^^^ the trait `Deserialize<'_>` is not implemented for `SecretKey`
+     |
+     = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `SecretKey` type
+     = note: for types from other crates check whether the crate offers a `serde` feature flag
+     = help: the following other types implement trait `Deserialize<'de>`:
+               &'a [u8]
+               &'a serde_json::value::RawValue
+               &'a std::path::Path
+               &'a str
+               ()
+               (T,)
+               (T0, T1)
+               (T0, T1, T2)
+             and 489 others
+note: required by a bound in `next_value`
+    --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.219/src/de/mod.rs:1871:12
+     |
+1869 |     fn next_value<V>(&mut self) -> Result<V, Self::Error>
+     |        ---------- required by a bound in this associated function
+1870 |     where
+1871 |         V: Deserialize<'de>,
+     |            ^^^^^^^^^^^^^^^^ required by this bound in `MapAccess::next_value`
+
+error[E0277]: the trait bound `secp256k1::PublicKey: Deserialize<'_>` is not satisfied
+    --> src/wallet.rs:19:21
+     |
+19   |     pub public_key: PublicKey,
+     |                     ^^^^^^^^^ the trait `Deserialize<'_>` is not implemented for `secp256k1::PublicKey`
+     |
+     = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `secp256k1::PublicKey` type
+     = note: for types from other crates check whether the crate offers a `serde` feature flag
+     = help: the following other types implement trait `Deserialize<'de>`:
+               &'a [u8]
+               &'a serde_json::value::RawValue
+               &'a std::path::Path
+               &'a str
+               ()
+               (T,)
+               (T0, T1)
+               (T0, T1, T2)
+             and 489 others
+note: required by a bound in `next_value`
+    --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.219/src/de/mod.rs:1871:12
+     |
+1869 |     fn next_value<V>(&mut self) -> Result<V, Self::Error>
+     |        ---------- required by a bound in this associated function
+1870 |     where
+1871 |         V: Deserialize<'de>,
+     |            ^^^^^^^^^^^^^^^^ required by this bound in `MapAccess::next_value`
+
+error[E0277]: the trait bound `SecretKey: Deserialize<'_>` is not satisfied
+  --> src/wallet.rs:15:35
+   |
+15 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ^^^^^^^^^^^ the trait `Deserialize<'_>` is not implemented for `SecretKey`
+   |
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `SecretKey` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a serde_json::value::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and 489 others
+note: required by a bound in `address::_::_serde::__private::de::missing_field`
+  --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.219/src/private/de.rs:25:8
+   |
+23 | pub fn missing_field<'de, V, E>(field: &'static str) -> Result<V, E>
+   |        ------------- required by a bound in this function
+24 | where
+25 |     V: Deserialize<'de>,
+   |        ^^^^^^^^^^^^^^^^ required by this bound in `missing_field`
+   = note: this error originates in the derive macro `Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `secp256k1::PublicKey: Deserialize<'_>` is not satisfied
+  --> src/wallet.rs:15:35
+   |
+15 | #[derive(Debug, Clone, Serialize, Deserialize)]
+   |                                   ^^^^^^^^^^^ the trait `Deserialize<'_>` is not implemented for `secp256k1::PublicKey`
+   |
+   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `secp256k1::PublicKey` type
+   = note: for types from other crates check whether the crate offers a `serde` feature flag
+   = help: the following other types implement trait `Deserialize<'de>`:
+             &'a [u8]
+             &'a serde_json::value::RawValue
+             &'a std::path::Path
+             &'a str
+             ()
+             (T,)
+             (T0, T1)
+             (T0, T1, T2)
+           and 489 others
+note: required by a bound in `address::_::_serde::__private::de::missing_field`
+  --> /home/runner/workspace/.local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.219/src/private/de.rs:25:8
+   |
+23 | pub fn missing_field<'de, V, E>(field: &'static str) -> Result<V, E>
+   |        ------------- required by a bound in this function
+24 | where
+25 |     V: Deserialize<'de>,
+   |        ^^^^^^^^^^^^^^^^ required by this bound in `missing_field`
+   = note: this error originates in the derive macro `Deserialize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+warning: unused import: `Digest`
+ --> src/security_audit.rs:8:23
+  |
+8 | use sha3::{Keccak256, Digest};
+  |                       ^^^^^^
+
+warning: unused import: `Digest`
+ --> src/state.rs:5:12
+  |
+5 | use sha3::{Digest, Keccak256};
+  |            ^^^^^^
+
+warning: unused import: `ComponentExt`
+ --> src/thermal.rs:1:34
+  |
+1 | use sysinfo::{System, SystemExt, ComponentExt};
+  |                                  ^^^^^^^^^^^^
+
+warning: unused variable: `stake`
+   --> src/address.rs:233:58
+    |
+233 | ...(&self, beta_angle: f64, stake: u64) -> Result<(GearParameters, Addr...
+    |                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_stake`
+
+warning: unused variable: `epoch`
+   --> src/delegation.rs:294:39
+    |
+294 |     fn calculate_epoch_rewards(&self, epoch: u64) -> u128 {
+    |                                       ^^^^^ help: if this is intentional, prefix it with an underscore: `_epoch`
+
+warning: unused variable: `proof`
+   --> src/oracle.rs:303:32
+    |
+303 | ... verify_vrf_proof(&self, proof: &[u8], seed: &[u8; 32]) -> Result<()...
+    |                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_proof`
+
+warning: unused variable: `seed`
+   --> src/oracle.rs:303:46
+    |
+303 | ...oof(&self, proof: &[u8], seed: &[u8; 32]) -> Result<(), OracleError> {
+    |                             ^^^^ help: if this is intentional, prefix it with an underscore: `_seed`
+
+warning: unused variable: `words`
+   --> src/oracle.rs:308:35
+    |
+308 | ...rify_random_words(&self, words: &[[u8; 32]], proof: &[u8]) -> Result...
+    |                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_words`
+
+warning: unused variable: `proof`
+   --> src/oracle.rs:308:55
+    |
+308 | ...elf, words: &[[u8; 32]], proof: &[u8]) -> Result<(), OracleError> {
+    |                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_proof`
+
+warning: unused variable: `signature`
+   --> src/oracle.rs:313:32
+    |
+313 | ...erify_signature(&self, signature: &str, data: &[[u8; 32]]) -> Result...
+    |                           ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_signature`
+
+warning: unused variable: `data`
+   --> src/oracle.rs:313:49
+    |
+313 | ...(&self, signature: &str, data: &[[u8; 32]]) -> Result<(), OracleErro...
+    |                             ^^^^ help: if this is intentional, prefix it with an underscore: `_data`
+
+warning: unused variable: `key_image`
+   --> src/privacy.rs:267:9
+    |
+267 |         key_image: &CompressedRistretto,
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_key_image`
+
+warning: unused variable: `public_keys`
+   --> src/privacy.rs:268:9
+    |
+268 |         public_keys: &[CompressedRistretto],
+    |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_public_keys`
+
+warning: unused variable: `transcript`
+   --> src/privacy.rs:276:9
+    |
+276 |         transcript: &mut Transcript,
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_transcript`
+
+warning: unused variable: `message`
+   --> src/privacy.rs:277:9
+    |
+277 |         message: &[u8],
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_message`
+
+warning: unused variable: `private_key`
+   --> src/privacy.rs:278:9
+    |
+278 |         private_key: &Scalar,
+    |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_private_key`
+
+warning: unused variable: `public_keys`
+   --> src/privacy.rs:279:9
+    |
+279 |         public_keys: &[CompressedRistretto],
+    |         ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_public_keys`
+
+warning: unused variable: `key_image`
+   --> src/privacy.rs:280:9
+    |
+280 |         key_image: &CompressedRistretto,
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_key_image`
+
+warning: unused variable: `rng`
+   --> src/privacy.rs:281:9
+    |
+281 |         rng: &mut OsRng,
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_rng`
+
+warning: unused variable: `signature`
+   --> src/privacy.rs:287:37
+    |
+287 | ..._ring_signature(&self, signature: &RingSignature) -> Result<bool, Pr...
+    |                           ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_signature`
+
+warning: unused variable: `transcript`
+   --> src/privacy.rs:305:9
+    |
+305 |         transcript: &mut Transcript,
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_transcript`
+
+warning: unused variable: `proof`
+   --> src/privacy.rs:306:9
+    |
+306 |         proof: &RangeProof,
+    |         ^^^^^ help: if this is intentional, prefix it with an underscore: `_proof`
+
+warning: unused variable: `commitment`
+   --> src/privacy.rs:307:9
+    |
+307 |         commitment: &CompressedRistretto,
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_commitment`
+
+warning: unused variable: `transcript`
+   --> src/privacy.rs:315:9
+    |
+315 |         transcript: &mut Transcript,
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_transcript`
+
+warning: unused variable: `statement`
+   --> src/privacy.rs:316:9
+    |
+316 |         statement: &[u8],
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_statement`
+
+warning: unused variable: `witness`
+   --> src/privacy.rs:317:9
+    |
+317 |         witness: &[u8],
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_witness`
+
+warning: unused variable: `public_inputs`
+   --> src/privacy.rs:318:9
+    |
+318 |         public_inputs: &[Vec<u8>],
+    |         ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_public_inputs`
+
+warning: unused variable: `rng`
+   --> src/privacy.rs:319:9
+    |
+319 |         rng: &mut OsRng,
+    |         ^^^ help: if this is intentional, prefix it with an underscore: `_rng`
+
+warning: unused variable: `proof`
+   --> src/privacy.rs:325:31
+    |
+325 | ...n verify_zk_proof(&self, proof: &ZeroKnowledgeProof) -> Result<bool,...
+    |                             ^^^^^ help: if this is intentional, prefix it with an underscore: `_proof`
+
+warning: unused variable: `nullifier`
+   --> src/privacy.rs:330:32
+    |
+330 | ...erify_nullifier(&self, nullifier: &[u8]) -> Result<bool, PrivacyErro...
+    |                           ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_nullifier`
+
+warning: unused variable: `shard_id`
+   --> src/sharding.rs:196:30
+    |
+196 |     fn get_shard_info(&self, shard_id: u32) -> Option<Shard> {
+    |                              ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_shard_id`
+
+warning: unused variable: `shard_id`
+   --> src/sharding.rs:201:38
+    |
+201 | ...shard_state(&mut self, shard_id: u32, new_state: String) -> Result<(...
+    |                           ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_shard_id`
+
+warning: unused variable: `new_state`
+   --> src/sharding.rs:201:53
+    |
+201 | ...t self, shard_id: u32, new_state: String) -> Result<(), String> {
+    |                           ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_new_state`
+
+warning: unused variable: `transaction`
+   --> src/sharding.rs:206:48
+    |
+206 | ...ard_transaction(&self, transaction: &Transaction) -> bool {
+    |                           ^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_transaction`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `counter`
+  --> src/logging.rs:23:23
+   |
+23 |     pub block_height: counter::Counter,
+   |                       ^^^^^^^ use of undeclared crate or module `counter`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `counter`
+  --> src/logging.rs:24:28
+   |
+24 |     pub transaction_count: counter::Counter,
+   |                            ^^^^^^^ use of undeclared crate or module `counter`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `gauge`
+  --> src/logging.rs:25:21
+   |
+25 |     pub peer_count: gauge::Gauge,
+   |                     ^^^^^ use of undeclared crate or module `gauge`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `histogram`
+  --> src/logging.rs:26:21
+   |
+26 |     pub block_time: histogram::Histogram,
+   |                     ^^^^^^^^^ use of undeclared crate or module `histogram`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `gauge`
+  --> src/logging.rs:27:21
+   |
+27 |     pub shard_load: gauge::Gauge,
+   |                     ^^^^^ use of undeclared crate or module `gauge`
+
+error[E0433]: failed to resolve: use of undeclared crate or module `histogram`
+  --> src/logging.rs:28:26
+   |
+28 |     pub network_latency: histogram::Histogram,
+   |                          ^^^^^^^^^ use of undeclared crate or module `histogram`
+
+Some errors have detailed explanations: E0063, E0119, E0252, E0255, E0277, E0308, E0428, E0432, E0433...
+For more information about an error, try `rustc --explain E0063`.
+warning: `helix-chain` (lib) generated 171 warnings (63 duplicates)
+error: could not compile `helix-chain` (lib) due to 225 previous errors; 171 warnings emitted
