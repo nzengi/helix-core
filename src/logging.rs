@@ -7,7 +7,7 @@ use tracing_subscriber::{
     EnvFilter,
 };
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
-use metrics::{counter, gauge, histogram, Counter, Gauge, Histogram};
+use metrics::{Counter, Gauge, Histogram};
 use metrics_exporter_prometheus::PrometheusBuilder;
 use crate::config::LoggingConfig;
 
@@ -19,23 +19,23 @@ pub struct Logger {
 
 #[derive(Clone)]
 pub struct Metrics {
-    pub block_height: Counter,
-    pub transaction_count: Counter,
-    pub peer_count: Gauge,
-    pub block_time: Histogram,
-    pub shard_load: Gauge,
-    pub network_latency: Histogram,
+    pub block_height_name: String,
+    pub transaction_count_name: String,
+    pub peer_count_name: String,
+    pub block_time_name: String,
+    pub shard_load_name: String,
+    pub network_latency_name: String,
 }
 
 impl std::fmt::Debug for Metrics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Metrics")
-            .field("block_height", &"<Counter>")
-            .field("transaction_count", &"<Counter>")
-            .field("peer_count", &"<Gauge>")
-            .field("block_time", &"<Histogram>")
-            .field("shard_load", &"<Gauge>")
-            .field("network_latency", &"<Histogram>")
+            .field("block_height", &self.block_height_name)
+            .field("transaction_count", &self.transaction_count_name)
+            .field("peer_count", &self.peer_count_name)
+            .field("block_time", &self.block_time_name)
+            .field("shard_load", &self.shard_load_name)
+            .field("network_latency", &self.network_latency_name)
             .finish()
     }
 }
@@ -43,12 +43,12 @@ impl std::fmt::Debug for Metrics {
 impl Metrics {
     pub fn new() -> Self {
         Self {
-            block_height: counter!("block_height"),
-            transaction_count: counter!("transaction_count"),
-            peer_count: gauge!("peer_count"),
-            block_time: histogram!("block_time"),
-            shard_load: gauge!("shard_load"),
-            network_latency: histogram!("network_latency"),
+            block_height_name: "block_height".to_string(),
+            transaction_count_name: "transaction_count".to_string(),
+            peer_count_name: "peer_count".to_string(),
+            block_time_name: "block_time".to_string(),
+            shard_load_name: "shard_load".to_string(),
+            network_latency_name: "network_latency".to_string(),
         }
     }
 }
@@ -114,25 +114,25 @@ impl Logger {
     }
 
     // Metrics metodları
-    pub fn record_block(&self, height: u64, time_ms: f64) {
-        self.metrics.block_height.increment(1);
-        self.metrics.block_time.record(time_ms);
+    pub fn record_block(&self, _height: u64, time_ms: f64) {
+        metrics::increment_counter!("block_height");
+        metrics::histogram!("block_time", time_ms);
     }
 
     pub fn record_transaction(&self) {
-        self.metrics.transaction_count.increment(1);
+        metrics::increment_counter!("transaction_count");
     }
 
     pub fn update_peer_count(&self, count: f64) {
-        self.metrics.peer_count.set(count);
+        metrics::gauge!("peer_count", count);
     }
 
     pub fn update_shard_load(&self, load: f64) {
-        self.metrics.shard_load.set(load);
+        metrics::gauge!("shard_load", load);
     }
 
     pub fn record_network_latency(&self, latency_ms: f64) {
-        self.metrics.network_latency.record(latency_ms);
+        metrics::histogram!("network_latency", latency_ms);
     }
 
     // Log seviyesini güncelle
