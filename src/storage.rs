@@ -11,7 +11,7 @@ use rand::{rngs::OsRng, RngCore};
 use tokio::fs::{self, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use aes_gcm::{
-    aead::{Aead, generic_array::GenericArray}, KeyInit};
+    aead::{Aead, generic_array::GenericArray}, KeyInit, Key, Nonce};
 use aes_gcm::{Aes256Gcm};
 use flate2::{Compression, write::GzEncoder, read::GzDecoder};
 use std::io::{Write, Read};

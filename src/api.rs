@@ -1,7 +1,6 @@
 use anyhow::Result;
 use axum::{
     extract::{Path, Query, State},
-    http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
@@ -414,10 +413,13 @@ fn convert_consensus_tx_to_state(consensus_tx: &Transaction) -> crate::state::Tr
         fee: consensus_tx.gas_price * consensus_tx.gas_limit,
         gas_limit: consensus_tx.gas_limit,
         gas_price: consensus_tx.gas_price,
+        gas_used: 0,
         nonce: consensus_tx.nonce,
         data: consensus_tx.data.clone(),
         signature: consensus_tx.signature.clone(),
         timestamp: consensus_tx.timestamp.timestamp() as u64,
+        block_height: 0,
+        status: "pending".to_string(),
     }
 }
 
@@ -431,6 +433,10 @@ fn create_sample_block(height: u64) -> Block {
         hash: format!("block_hash_{}", height),
         signatures: vec![format!("sig_{}", height)],
         validator: "genesis_validator_1".to_string(),
+        gas_limit: 8000000,
+        gas_used: 0,
+        size: 1024,
+        nonce: height,
     }
 }
 

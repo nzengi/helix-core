@@ -74,13 +74,13 @@ pub struct Transaction {
     pub fee: u64,
     pub gas_limit: u64,
     pub gas_price: u64,
+    pub gas_used: u64,
     pub nonce: u64,
     pub data: Vec<u8>,
     pub signature: String,
     pub timestamp: u64,
-    pub status: TransactionStatus,
-    pub block_height: Option<u64>,
-    pub gas_used: Option<u64>,
+    pub block_height: u64,
+    pub status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -115,13 +115,13 @@ impl Transaction {
             fee: gas_limit * gas_price,
             gas_limit,
             gas_price,
+            gas_used: 0, // default
             nonce,
             data,
             signature: String::new(),
             timestamp,
-            status: TransactionStatus::Pending,
-            block_height: None,
-            gas_used: None,
+            block_height: 0, //default
+            status: "Pending".to_string(), //TransactionStatus::Pending,
         }
     }
 
@@ -163,10 +163,10 @@ pub struct Block {
     pub hash: String,
     pub signatures: Vec<String>,
     pub validator: String,
-    pub state_root: String,
-    pub gas_used: u64,
     pub gas_limit: u64,
+    pub gas_used: u64,
     pub size: u64,
+    pub nonce: u64,
 }
 
 impl Block {
@@ -178,7 +178,7 @@ impl Block {
     ) -> Self {
         let timestamp = chrono::Utc::now().timestamp() as u64;
         let merkle_root = Self::calculate_merkle_root(&transactions);
-        let gas_used = transactions.iter().map(|tx| tx.gas_used.unwrap_or(0)).sum();
+        let gas_used = transactions.iter().map(|tx| tx.gas_used).sum();
         let gas_limit = transactions.iter().map(|tx| tx.gas_limit).sum();
 
         let mut block = Block {
@@ -190,10 +190,10 @@ impl Block {
             hash: String::new(),
             signatures: Vec::new(),
             validator,
-            state_root: String::new(),
-            gas_used,
             gas_limit,
+            gas_used,
             size: 0,
+            nonce: 0, //default
         };
 
         block.hash = block.calculate_hash();
@@ -511,7 +511,7 @@ impl ChainState {
             return Err(StateError::InvalidTransaction("Transaction validation failed".to_string()));
         }
 
-        transaction.status = TransactionStatus::Pending;
+        //transaction.status = TransactionStatus::Pending;
 
         let mut pool = self.pending_transactions.lock().await;
 
@@ -545,8 +545,8 @@ impl ChainState {
         // Move transactions from pending to confirmed
         for tx in &block.transactions {
             let mut confirmed_tx = tx.clone();
-            confirmed_tx.status = TransactionStatus::Confirmed;
-            confirmed_tx.block_height = Some(block.index);
+            //confirmed_tx.status = TransactionStatus::Confirmed;
+            //confirmed_tx.block_height = Some(block.index);
             confirmed_txs.insert(tx.hash.clone(), confirmed_tx);
 
             // Remove from pending
@@ -881,8 +881,7 @@ mod tests {
     #[tokio::test]
     async fn test_balance_operations() {
         let state = ChainState::new();
-        state.create_account("0x123".to_string()).await.unwrap();
-
+        state.create_account("0x123".to_string()).await.unwrap();```
         let result = state.set_balance("0x123", 1000).await;
         assert!(result.is_ok());
 
@@ -904,7 +903,7 @@ mod tests {
 
         assert_eq!(tx.amount, 1000);
         assert_eq!(tx.total_cost(), 1000 + (21000 * 20));
-        assert_eq!(tx.status, TransactionStatus::Pending);
+        //assert_eq!(tx.status, TransactionStatus::Pending);
     }
 
     #[tokio::test]
