@@ -1,4 +1,3 @@
-
 use sysinfo::{System, SystemExt, ComponentExt};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -89,7 +88,7 @@ impl ThermalBalancer {
         if component_count > 0 {
             self.current_temp = total_temp / component_count as f64;
             self.efficiency_factor = self.calculate_efficiency_factor();
-            
+
             info!("Temperature updated: {:.2}°C, Efficiency: {:.2}", 
                   self.current_temp, self.efficiency_factor);
         } else {
@@ -102,7 +101,7 @@ impl ThermalBalancer {
     pub fn calculate_efficiency_factor(&self) -> f64 {
         let temp_diff = (self.current_temp - self.optimal_temp).abs();
         let factor = (1.0 - (temp_diff * 0.01)).max(0.1);
-        
+
         // Apply additional penalties for extreme temperatures
         if self.current_temp > 80.0 {
             factor * 0.5 // Severe penalty for very high temps
@@ -135,7 +134,7 @@ impl ThermalBalancer {
 
     pub fn get_thermal_stats(&self) -> ThermalStats {
         let temps: Vec<f64> = self.temp_history.iter().map(|r| r.temperature).collect();
-        
+
         let average_temp = if !temps.is_empty() {
             temps.iter().sum::<f64>() / temps.len() as f64
         } else {
@@ -249,7 +248,7 @@ mod tests {
     #[test]
     fn test_thermal_states() {
         let mut balancer = ThermalBalancer::new();
-        
+
         balancer.current_temp = 30.0;
         assert_eq!(balancer.get_thermal_state(), ThermalState::Optimal);
 

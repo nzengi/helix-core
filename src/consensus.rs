@@ -383,7 +383,10 @@ impl RotaryBFT {
 
         let tx_hashes: Vec<String> = transactions.iter().map(|tx| tx.hash.clone()).collect();
 
-        let merkle_tree = crate::crypto::MerkleTree::new(tx_hashes);
+        let tx_hashes_bytes: Vec<Vec<u8>> = tx_hashes.iter()
+            .map(|hash| hash.as_bytes().to_vec())
+            .collect();
+        let merkle_tree = crate::crypto::MerkleTree::new(tx_hashes_bytes);
         merkle_tree.root
     }
 

@@ -74,12 +74,12 @@ impl SecurityManager {
     // Transaction imza doğrulama
     pub async fn verify_transaction(&self, transaction: &Transaction) -> Result<bool, String> {
         // 1. Rate limit kontrolü
-        if !self.check_rate_limit(&transaction.sender).await {
+        if !self.check_rate_limit(&transaction.from).await {
             return Err("Rate limit exceeded".to_string());
         }
 
         // 2. Blacklist kontrolü
-        if self.is_blacklisted(&transaction.sender).await {
+        if self.is_blacklisted(&transaction.from).await {
             return Err("Address is blacklisted".to_string());
         }
 
@@ -175,7 +175,7 @@ impl SecurityManager {
     // Anomali tespiti
     pub async fn detect_anomaly(&self, transaction: &Transaction) -> bool {
         // Simple anomaly detection based on transaction amount
-        if transaction.amount > 1_000_000.0 {
+        if transaction.amount > 1_000_000 {
             let mut details = HashMap::new();
             details.insert("transaction_hash".to_string(), transaction.hash.clone());
             details.insert("amount".to_string(), transaction.amount.to_string());
@@ -185,7 +185,7 @@ impl SecurityManager {
         }
 
         // Check for suspicious gas price
-        if transaction.gas_price > 1000.0 {
+        if transaction.gas_price > 1000 {
             let mut details = HashMap::new();
             details.insert("transaction_hash".to_string(), transaction.hash.clone());
             details.insert("gas_price".to_string(), transaction.gas_price.to_string());
@@ -272,8 +272,8 @@ impl SignatureVerifier {
 
         // Transaction verilerini hash'le
         let message_data = format!("{}{}{}{}", 
-            transaction.sender, 
-            transaction.receiver, 
+            transaction.from, 
+            transaction.to, 
             transaction.amount, 
             transaction.nonce
         );
@@ -285,13 +285,13 @@ impl SignatureVerifier {
             .map_err(|e| e.to_string())?;
 
         // Public key'i al veya generate et
-        let public_key = if let Some(key) = self.public_keys.get(&transaction.sender) {
+        let public_key = if let Some(key) = self.public_keys.get(&transaction.from) {
             *key
         } else {
             // Simulate public key derivation from address
             let secret_key = SecretKey::new(&mut rand::rngs::OsRng);
             let public_key = PublicKey::from_secret_key(secp, &secret_key);
-            self.public_keys.insert(transaction.sender.clone(), public_key);
+            self.public_keys.insert(transaction.from.clone(), public_key);
             public_key
         };
 
@@ -378,7 +378,7 @@ pub async fn audit_transaction_security(transaction: &Transaction) -> Result<boo
         return Err("Invalid gas price".to_string());
     }
 
-    if transaction.sender == transaction.receiver {
+    if transaction.from == transaction.to {
         return Err("Self-transfer not allowed".to_string());
     }
 

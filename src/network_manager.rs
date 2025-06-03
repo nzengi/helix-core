@@ -34,7 +34,7 @@ pub enum NetworkMessage {
     HandshakeAck { accepted: bool },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct NetworkManager {
     config: Config,
     peers: Arc<RwLock<HashMap<String, Peer>>>,

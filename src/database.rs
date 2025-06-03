@@ -590,7 +590,7 @@ impl Database {
         let blocks = self.blocks.lock().await;
         for block in blocks.values() {
             if let Some(index) = indices.get_mut("blocks_by_height") {
-                index.data.insert(block.index.to_string(), vec![block.hash.clone()]);
+                index.data.insert(block.height.to_string(), vec![block.hash.clone()]);
             }
         }
         
@@ -598,13 +598,13 @@ impl Database {
         let transactions = self.transactions.lock().await;
         for tx in transactions.values() {
             if let Some(index) = indices.get_mut("transactions_by_sender") {
-                index.data.entry(tx.sender.clone())
+                index.data.entry(tx.from.clone())
                     .or_insert_with(Vec::new)
                     .push(tx.hash.clone());
             }
             
             if let Some(index) = indices.get_mut("transactions_by_receiver") {
-                index.data.entry(tx.receiver.clone())
+                index.data.entry(tx.to.clone())
                     .or_insert_with(Vec::new)
                     .push(tx.hash.clone());
             }

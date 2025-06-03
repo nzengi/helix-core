@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
@@ -11,7 +10,9 @@ use sha3::{Keccak256, Digest};
 use rand::{rngs::OsRng, RngCore};
 use tokio::fs::{self, File};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use aes_gcm::{Aes256Gcm, Key, Nonce, aead::{Aead, NewAead, generic_array::GenericArray}};
+use aes_gcm::{
+    aead::{Aead, generic_array::GenericArray}, KeyInit};
+use aes_gcm::{Aes256Gcm};
 use flate2::{Compression, write::GzEncoder, read::GzDecoder};
 use std::io::{Write, Read};
 
@@ -348,13 +349,13 @@ impl StorageManager {
     pub async fn sync_with_peers(&self) -> Result<(), StorageError> {
         // Peer'lar ile senkronizasyon işlemi
         tracing::info!("Starting peer synchronization");
-        
+
         // Burada gerçek peer senkronizasyon mantığı olacak
         tokio::time::sleep(Duration::from_millis(100)).await;
-        
+
         let mut stats = self.stats.lock().await;
         stats.last_sync = Some(Utc::now());
-        
+
         tracing::info!("Peer synchronization completed");
         Ok(())
     }
@@ -362,14 +363,14 @@ impl StorageManager {
     pub async fn get_storage_health(&self) -> Result<HashMap<String, String>, StorageError> {
         let mut health = HashMap::new();
         let stats = self.get_storage_stats().await;
-        
+
         health.insert("status".to_string(), "healthy".to_string());
         health.insert("total_files".to_string(), stats.total_files.to_string());
         health.insert("total_size".to_string(), stats.total_size.to_string());
         health.insert("local_files".to_string(), stats.local_files.to_string());
         health.insert("encrypted_files".to_string(), stats.encrypted_files.to_string());
         health.insert("compressed_files".to_string(), stats.compressed_files.to_string());
-        
+
         if let Some(last_sync) = stats.last_sync {
             health.insert("last_sync".to_string(), last_sync.to_rfc3339());
         }
@@ -384,13 +385,13 @@ impl StorageManager {
     async fn calculate_disk_usage(&self) -> Result<u64, StorageError> {
         let mut total_size = 0u64;
         let mut dir = fs::read_dir(&self.config.local_path).await?;
-        
+
         while let Some(entry) = dir.next_entry().await? {
             if let Ok(metadata) = entry.metadata().await {
                 total_size += metadata.len();
             }
         }
-        
+
         Ok(total_size)
     }
 }
