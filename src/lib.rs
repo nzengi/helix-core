@@ -32,7 +32,7 @@ pub mod thermal;
 pub mod token;
 pub mod wallet;
 
-pub use crate::consensus::{ConsensusState, Block, Transaction as ConsensusTransaction};
+pub use crate::consensus::{ConsensusState, RotaryBFT, Block, Transaction as ConsensusTransaction};
 pub use crate::crypto::CryptoManager;
 pub use crate::state::{ChainState, Account};
 pub use crate::network_manager::NetworkManager;
@@ -60,6 +60,7 @@ pub struct HelixNode {
     pub config: Config,
     pub chain_state: Arc<ChainState>,
     pub consensus: Arc<Mutex<ConsensusState>>,
+    pub rotary_bft: Arc<RotaryBFT>,
     pub crypto: Arc<CryptoManager>,
     pub network: Arc<NetworkManager>,
     pub is_running: Arc<Mutex<bool>>,
@@ -87,10 +88,13 @@ impl HelixNode {
             sync_status: SyncStatus::NotSynced,
         };
 
+        let rotary_bft = Arc::new(RotaryBFT::new(Arc::clone(&chain_state)));
+
         Ok(Self {
             config,
             chain_state,
             consensus,
+            rotary_bft,
             crypto,
             network,
             is_running: Arc::new(Mutex::new(false)),
@@ -110,6 +114,7 @@ impl HelixNode {
             let mut consensus = self.consensus.lock().await;
             consensus.start().await?;
         }
+        self.rotary_bft.start_consensus().await?;
 
         // Update node status
         {
@@ -137,6 +142,7 @@ impl HelixNode {
             consensus.stop().await?;
         }
         self.network.stop().await?;
+        self.rotary_bft.stop_consensus().await?;
 
         *is_running = false;
         tracing::info!("HelixNode stopped");

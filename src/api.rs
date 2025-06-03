@@ -272,7 +272,7 @@ async fn get_balance(
 }
 
 async fn get_validators(State(state): State<ApiState>) -> impl IntoResponse {
-    match state.node.consensus.get_validators().await {
+    match state.node.rotary_bft.get_validators().await {
         Ok(validators) => Json(ApiResponse::success(validators)),
         Err(e) => {
             tracing::error!("Failed to get validators: {}", e);
@@ -313,7 +313,7 @@ async fn add_validator(
         is_active: true,
     };
 
-    match state.node.consensus.add_validator(validator.clone()).await {
+    match state.node.rotary_bft.add_validator(validator.clone()).await {
         Ok(_) => {
             tracing::info!("Validator {} added successfully", validator.address);
             Json(ApiResponse::success(validator))
@@ -442,7 +442,7 @@ fn create_sample_block(height: u64) -> Block {
 async fn collect_system_metrics(state: &ApiState) -> Result<SystemMetrics, anyhow::Error> {
     let status = state.node.chain_state.get_status().await?;
     let pending_txs = state.node.chain_state.get_pending_transactions().await?;
-    let validators = state.node.consensus.get_validators().await?;
+    let validators = state.node.rotary_bft.get_validators().await?;
 
     // Calculate uptime (simplified)
     let uptime = calculate_uptime();
