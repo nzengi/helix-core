@@ -272,8 +272,7 @@ async fn get_balance(
 }
 
 async fn get_validators(State(state): State<ApiState>) -> impl IntoResponse {
-    let validators = vec![]; // Temporary fix - implement proper validator retrieval
-    match Ok(validators) as Result<Vec<crate::consensus::Validator>, anyhow::Error> {
+    match state.node.consensus.get_validators().await {
         Ok(validators) => Json(ApiResponse::success(validators)),
         Err(e) => {
             tracing::error!("Failed to get validators: {}", e);
