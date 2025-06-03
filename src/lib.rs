@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -184,7 +183,7 @@ impl HelixNode {
             Some(state_block) => {
                 // Convert state::Block to consensus::Block
                 Ok(Some(Block {
-                    height: state_block.height,
+                    height: state_block.index,
                     timestamp: DateTime::from_timestamp(state_block.timestamp as i64, 0).unwrap_or_else(|| Utc::now()),
                     previous_hash: state_block.previous_hash,
                     transactions: state_block.transactions.into_iter().map(|tx| ConsensusTransaction {
@@ -215,13 +214,13 @@ impl HelixNode {
         if latest_height == 0 {
             return Ok(None);
         }
-        
+
         let blocks = self.chain_state.get_blocks_by_height_range(latest_height, latest_height).await.map_err(|e| anyhow::anyhow!("Failed to get blocks: {:?}", e))?;
         match blocks.into_iter().next() {
             Some(state_block) => {
                 // Convert state::Block to consensus::Block
                 Ok(Some(Block {
-                    height: state_block.height,
+                    height: state_block.index,
                     timestamp: DateTime::from_timestamp(state_block.timestamp as i64, 0).unwrap_or_else(|| Utc::now()),
                     previous_hash: state_block.previous_hash,
                     transactions: state_block.transactions.into_iter().map(|tx| ConsensusTransaction {
@@ -288,7 +287,7 @@ impl HelixNode {
 
         // Get pending transactions
         let pending_txs = self.get_pending_transactions().await?;
-        
+
         // Convert state transactions to consensus transactions
         let mut consensus_txs = Vec::new();
         for tx in pending_txs.iter().take(1000) { // Limit block size
@@ -436,11 +435,11 @@ impl HelixNode {
         } else { 
             1.0 
         };
-        
+
         // Apply gear ratio calculation (simplified)
         let beta_angle = 40.0_f64.to_radians(); // Standard gear angle
         let efficiency = 0.92; // Gear efficiency
-        
+
         let torque = base_torque * beta_angle.sin() * efficiency * (transaction_load / network_load);
         Ok(torque.max(0.1)) // Minimum torque
     }
@@ -450,7 +449,7 @@ impl HelixNode {
         let info = self.get_node_info().await;
         let peer_count = self.get_peer_count().await;
         let latest_block_height = self.chain_state.get_latest_block_height().await.map_err(|e| anyhow::anyhow!("Failed to get latest block height: {:?}", e))?;
-        
+
         Ok(HealthStatus {
             is_running,
             sync_status: info.sync_status,
@@ -531,14 +530,14 @@ impl AsyncBlockchain for HelixNode {
     async fn get_chain_stats(&self) -> Result<ChainStats> {
         let latest_height = self.chain_state.get_latest_block_height().await.map_err(|e| anyhow::anyhow!("Failed to get latest block height: {:?}", e))?;
         let total_accounts = 100; // Simplified - would count actual accounts
-        
+
         // Calculate average block time (simplified)
         let avg_block_time = if latest_height > 10 {
             let recent_blocks = self.chain_state.get_blocks_by_height_range(
                 latest_height - 10, 
                 latest_height
             ).await.map_err(|e| anyhow::anyhow!("Failed to get blocks: {:?}", e))?;
-            
+
             if recent_blocks.len() >= 2 {
                 let time_diff = recent_blocks.last().unwrap().timestamp - 
                                recent_blocks.first().unwrap().timestamp;

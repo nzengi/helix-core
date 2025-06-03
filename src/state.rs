@@ -80,7 +80,7 @@ pub struct Transaction {
     pub signature: String,
     pub timestamp: u64,
     pub block_height: u64,
-    pub status: String,
+    pub status: TransactionStatus,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -121,7 +121,7 @@ impl Transaction {
             signature: String::new(),
             timestamp,
             block_height: 0, //default
-            status: "Pending".to_string(), //TransactionStatus::Pending,
+            status: TransactionStatus::Pending,
         }
     }
 
