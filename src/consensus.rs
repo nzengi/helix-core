@@ -231,7 +231,7 @@ impl RotaryBFT {
 
         // Sign the block
         let crypto = self.crypto.lock().await;
-        let signature = crypto.sign_data(block_data.as_bytes())?;
+        let signature = crypto.sign_data(block_data.as_bytes()).map_err(|e| anyhow::anyhow!(e))?;
 
         let mut final_block = temp_block;
         final_block.hash = calculated_hash;
@@ -256,12 +256,67 @@ impl RotaryBFT {
         }
 
         // Execute transactions and update state
+        // Convert consensus transactions to state transactions
+        let state_transactions: Vec<crate::state::Transaction> = block.transactions.iter().map(|tx| {
+            crate::state::Transaction {
+                id: tx.hash.clone(),
+                hash: tx.hash.clone(),
+                from: tx.from.clone(),
+                to: tx.to.clone(),
+                value: tx.amount,
+                amount: tx.amount,
+                fee: tx.gas_price * tx.gas_limit,
+                gas_limit: tx.gas_limit,
+                gas_price: tx.gas_price,
+                gas_used: 21000,
+                nonce: tx.nonce,
+                data: tx.data.clone(),
+                signature: tx.signature.clone(),
+                timestamp: tx.timestamp.timestamp() as u64,
+                block_height: block.height,
+                status: crate::state::TransactionStatus::Confirmed,
+            }
+        }).collect();
+
         self.chain_state
-            .execute_transactions(&block.transactions)
+            .execute_transactions(&state_transactions)
             .await?;
 
         // Add block to chain
-        self.chain_state.add_block(&block).await?;
+        // Convert consensus block to state block
+        let state_block = crate::state::Block {
+            index: block.height,
+            timestamp: block.timestamp.timestamp() as u64,
+            previous_hash: block.previous_hash.clone(),
+            merkle_root: block.merkle_root.clone(),
+            transactions: block.transactions.iter().map(|tx| crate::state::Transaction {
+                id: tx.hash.clone(),
+                hash: tx.hash.clone(),
+                from: tx.from.clone(),
+                to: tx.to.clone(),
+                value: tx.amount,
+                amount: tx.amount,
+                fee: tx.gas_price * tx.gas_limit,
+                gas_limit: tx.gas_limit,
+                gas_price: tx.gas_price,
+                gas_used: 21000,
+                nonce: tx.nonce,
+                data: tx.data.clone(),
+                signature: tx.signature.clone(),
+                timestamp: tx.timestamp.timestamp() as u64,
+                block_height: block.height,
+                status: crate::state::TransactionStatus::Confirmed,
+            }).collect(),
+            hash: block.hash.clone(),
+            signatures: vec![block.signature.clone()],
+            validator: block.validator.clone(),
+            gas_limit: block.transactions.iter().map(|tx| tx.gas_limit).sum(),
+            gas_used: block.transactions.len() as u64 * 21000,
+            size: 1024,
+            nonce: 0,
+        };
+
+        self.chain_state.add_block(&state_block).await?;
 
         Ok(true)
     }
@@ -316,7 +371,26 @@ impl RotaryBFT {
         let mut valid_transactions = Vec::new();
 
         for tx in transactions {
-            if self.chain_state.validate_transaction(&tx).await? {
+            let state_tx = crate::state::Transaction {
+            id: tx.hash.clone(),
+            hash: tx.hash.clone(),
+            from: tx.from.clone(),
+            to: tx.to.clone(),
+            value: tx.amount,
+            amount: tx.amount,
+            fee: tx.gas_price * tx.gas_limit,
+            gas_limit: tx.gas_limit,
+            gas_price: tx.gas_price,
+            gas_used: 0,
+            nonce: tx.nonce,
+            data: tx.data.clone(),
+            signature: tx.signature.clone(),
+            timestamp: tx.timestamp.timestamp() as u64,
+            block_height: 0,
+            status: crate::state::TransactionStatus::Pending,
+        };
+
+        if self.chain_state.validate_transaction(&state_tx).await? {
                 valid_transactions.push(tx);
             }
         }
@@ -562,7 +636,7 @@ impl RotaryBFT {
         }
 
         // Add to pending transactions
-        self.chain_state.add_pending_transaction(state_transaction).await
+        self.chain_state.add_pending_transaction(state_transaction).await.map_err(|e| anyhow::anyhow!(e))
     }
 
     pub async fn get_validator(&self, address: &str) -> Option<Validator> {

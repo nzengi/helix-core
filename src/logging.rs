@@ -84,15 +84,18 @@ impl Metrics {
     }
 
     pub fn increment_counter(&self, name: &str) {
-        metrics::increment_counter!(name);
+        let name_owned = name.to_string();
+        metrics::increment_counter!(name_owned);
     }
 
     pub fn record_histogram(&self, name: &str, value: f64) {
-        metrics::histogram!(name, value);
+        let name_owned = name.to_string();
+        metrics::histogram!(name_owned, value);
     }
 
     pub fn set_gauge(&self, name: &str, value: f64) {
-        metrics::gauge!(name, value);
+        let name_owned = name.to_string();
+        metrics::gauge!(name_owned, value);
     }
 }
 

@@ -167,6 +167,7 @@ impl GovernanceManager {
             parameters: Arc::new(Mutex::new(HashMap::new())),
             votes: Arc::new(Mutex::new(HashMap::new())),
             voting_power: Arc::new(Mutex::new(HashMap::new())),
+            delegations: Arc::new(Mutex::new(HashMap::new())),
             chain_state,
             database,
             treasury_balance: Arc::new(Mutex::new(treasury_balance)),
@@ -367,13 +368,13 @@ impl GovernanceManager {
         self.save_vote_to_db(&vote).await?;
 
         // Send vote notification to delegates
-        self.notify_vote_to_delegates(&voter, proposal_id, &vote_type).await?;
+        self.notify_vote_to_delegates(&voter, proposal_id.parse::<u64>().unwrap(), &vote_type).await?;
 
         // Öneri durumunu güncelle
         self.update_proposal_status(proposal).await?;
 
         // Update voting statistics
-        self.update_voting_statistics(proposal_id, &vote_type, total_voting_power).await?;
+        self.update_voting_statistics(proposal_id.parse::<u64>().unwrap(), &vote).await?;
 
         Ok(vote)
     }
@@ -506,7 +507,14 @@ impl GovernanceManager {
         };
 
         // Apply voting strategy specific settings
-        self.apply_voting_strategy(&mut proposal, voting_strategy).await?;
+        self.apply_voting_strategy(&mut proposal, &Vote {
+            voter: proposer.clone(),
+            proposal_id: proposal.id.clone(),
+            vote_type: VoteType::Abstain, // Placeholder, actual vote doesn't matter here
+            voting_power: voting_power,
+            timestamp: now,
+            reason: None,
+        }).await?;
 
         // Store proposal
         let mut proposals = self.proposals.lock().await;
@@ -881,7 +889,8 @@ impl GovernanceManager {
         hasher.update(&bytes);
         hasher.update(chrono::Utc::now().timestamp().to_string().as_bytes());
         let result = hasher.finalize();
-        Ok(format!("0x{}", hex::encode(result)))
+        ```text
+Ok(format!("0x{}", hex::encode(result)))
     }
 
     async fn save_proposal_to_db(&self, proposal: &Proposal) -> Result<(), GovernanceError> {
@@ -889,7 +898,7 @@ impl GovernanceManager {
         let value = serde_json::to_vec(proposal)
             .map_err(|_| GovernanceError::SerializationError)?;
 
-        self.database.put(Updating GovernanceError enum with additional error variants.key.as_bytes(), &value).await
+        self.database.put(key.as_bytes(), &value).await
             .map_err(|_| GovernanceError::DatabaseError)?;
 
         Ok(())
@@ -916,6 +925,35 @@ impl GovernanceManager {
             .map_err(|_| GovernanceError::SerializationError)?;
 
         Ok(proposal)
+    }
+
+    async fn apply_voting_strategy(&self, proposal: &mut Proposal, vote: &Vote) -> Result<(), GovernanceError> {
+        // Implementation will be added based on strategy
+        Ok(())
+    }
+
+    async fn notify_vote_to_delegates(&self, voter: &str, proposal_id: u64, vote_type: &VoteType) -> Result<(), GovernanceError> {
+        // Notify delegates about the vote
+        tracing::info!("Notifying delegates about vote from {} for proposal {}", voter, proposal_id);
+        Ok(())
+    }
+
+    async fn update_voting_statistics(&self, proposal_id: u64, vote: &Vote) -> Result<(), GovernanceError> {
+        // Update voting statistics
+        tracing::info!("Updating voting statistics for proposal {} with vote {:?}", proposal_id, vote);
+        Ok(())
+    }
+
+    async fn update_delegation_cache(&self, delegator: &str) -> Result<(), GovernanceError> {
+        // Update delegation cache
+        tracing::info!("Updating delegation cache for {}", delegator);
+        Ok(())
+    }
+
+    async fn notify_proposal_creation(&self, proposal: &Proposal) -> Result<(), GovernanceError> {
+        // Notify about proposal creation
+        tracing::info!("Notifying about proposal creation: {}", proposal.title);
+        Ok(())
     }
 }
 

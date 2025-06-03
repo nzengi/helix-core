@@ -16,7 +16,7 @@ use curve25519_dalek::{
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 use merlin::Transcript;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct RingSignature {
     pub message: Vec<u8>,
     pub key_image: CompressedRistretto,
@@ -34,7 +34,7 @@ pub struct ConfidentialTransaction {
     pub transaction_hash: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ConfidentialInput {
     pub commitment: CompressedRistretto,
     pub amount: u64,
@@ -42,7 +42,7 @@ pub struct ConfidentialInput {
     pub ring_signature: RingSignature,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ConfidentialOutput {
     pub commitment: CompressedRistretto,
     pub amount: u64,
@@ -67,20 +67,20 @@ pub struct MixerTransaction {
     pub transaction_hash: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MixerInput {
     pub commitment: CompressedRistretto,
     pub nullifier: Vec<u8>,
     pub proof: ZeroKnowledgeProof,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct MixerOutput {
     pub commitment: CompressedRistretto,
     pub recipient: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct StealthAddress {
     pub view_public_key: CompressedRistretto,
     pub spend_public_key: CompressedRistretto,
@@ -123,7 +123,7 @@ pub enum SwapStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct StealthPayment {
     pub id: String,
     pub sender: String,
@@ -612,12 +612,14 @@ impl PrivacyManager {
         public_keys: &[CompressedRistretto],
         private_key: &Scalar,
     ) -> Result<bool, PrivacyError> {
+        let public_key_bytes = public_keys.iter()
+            .find(|pk| (*private_key * RISTRETTO_BASEPOINT_POINT).compress() == **pk)
+            .ok_or(PrivacyError::InvalidPrivateKey)?
+            .as_bytes();
+        
         let computed_key_image = (private_key * 
-            RistrettoPoint::hash_from_bytes::<Keccak256>(
-                &public_keys.iter()
-                    .find(|pk| (*private_key * RISTRETTO_BASEPOINT_POINT).compress() == **pk)
-                    .ok_or(PrivacyError::InvalidPrivateKey)?
-                    .as_bytes()
+            RistrettoPoint::hash_from_bytes::<sha3::Sha3_512>(
+                public_key_bytes
             )).compress();
 
         Ok(computed_key_image == *key_image)
@@ -685,17 +687,21 @@ impl PrivacyManager {
         transcript: &mut Transcript,
         amount: u64,
         blinding_factor: &Scalar,
-        rng: &mut OsRng,
+        _rng: &mut OsRng,
     ) -> Result<RangeProof, PrivacyError> {
         transcript.append_message(b"amount", &amount.to_le_bytes());
         transcript.append_message(b"blinding", blinding_factor.as_bytes());
+
+        // Convert curve25519_dalek::Scalar to curve25519_dalek_ng::Scalar
+        let blinding_bytes = blinding_factor.to_bytes();
+        let ng_blinding = curve25519_dalek_ng::scalar::Scalar::from_bytes_mod_order(blinding_bytes);
 
         let (proof, _) = RangeProof::prove_single(
             &self.bulletproof_gens,
             &self.pedersen_gens,
             transcript,
             amount,
-            blinding_factor,
+            &ng_blinding,
             32,
         ).map_err(|_| PrivacyError::ProofGenerationFailed)?;
 
@@ -708,14 +714,16 @@ impl PrivacyManager {
         proof: &RangeProof,
         commitment: &CompressedRistretto,
     ) -> Result<bool, PrivacyError> {
-        let commitment_point = commitment.decompress()
-            .ok_or(PrivacyError::InvalidCommitment)?;
+        // Convert to bulletproofs compatible commitment
+        let commitment_bytes = commitment.as_bytes();
+        let ng_commitment = curve25519_dalek_ng::ristretto::CompressedRistretto::from_slice(commitment_bytes)
+            .map_err(|_| PrivacyError::InvalidCommitment)?;
 
         let result = proof.verify_single(
             &self.bulletproof_gens,
             &self.pedersen_gens,
             transcript,
-            &commitment_point,
+            &ng_commitment,
             32,
         );
 

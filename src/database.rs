@@ -241,13 +241,13 @@ impl Database {
         let mut result = Vec::new();
 
         for block in blocks.values() {
-            if block.index >= start_height && block.index <= end_height {
+            if block.height >= start_height && block.height <= end_height {
                 result.push(block.clone());
             }
         }
 
         // Sort by height
-        result.sort_by(|a, b| a.index.cmp(&b.index));
+        result.sort_by(|a, b| a.height.cmp(&b.height));
 
         Ok(result)
     }
@@ -259,7 +259,7 @@ impl Database {
         let mut result: Vec<Block> = blocks.values().cloned().collect();
 
         // Sort by height in descending order
-        result.sort_by(|a, b| b.index.cmp(&a.index));
+        result.sort_by(|a, b| b.height.cmp(&a.height));
         result.truncate(count);
 
         Ok(result)
@@ -302,7 +302,7 @@ impl Database {
         let mut result = Vec::new();
 
         for tx in transactions.values() {
-            if tx.sender == sender {
+            if tx.from == sender {
                 result.push(tx.clone());
             }
         }
@@ -318,7 +318,7 @@ impl Database {
         let mut result = Vec::new();
 
         for tx in transactions.values() {
-            if tx.receiver == receiver {
+            if tx.to == receiver {
                 result.push(tx.clone());
             }
         }
@@ -417,7 +417,7 @@ impl Database {
         let mut indices = self.indices.lock().await;
 
         if let Some(index) = indices.get_mut("blocks_by_height") {
-            index.data.insert(block.index.to_string(), vec![block.hash.clone()]);
+            index.data.insert(block.height.to_string(), vec![block.hash.clone()]);
         }
 
         Ok(())
@@ -428,14 +428,14 @@ impl Database {
 
         // Update sender index
         if let Some(index) = indices.get_mut("transactions_by_sender") {
-            index.data.entry(tx.sender.clone())
+            index.data.entry(tx.from.clone())
                 .or_insert_with(Vec::new)
                 .push(tx.hash.clone());
         }
 
         // Update receiver index
         if let Some(index) = indices.get_mut("transactions_by_receiver") {
-            index.data.entry(tx.receiver.clone())
+            index.data.entry(tx.to.clone())
                 .or_insert_with(Vec::new)
                 .push(tx.hash.clone());
         }

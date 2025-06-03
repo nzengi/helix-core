@@ -143,7 +143,7 @@ impl SecurityManager {
     // Güvenlik anahtarı oluşturma
     pub fn generate_security_key(&self) -> Result<SecretKey, String> {
         let mut rng = rand::rngs::OsRng;
-        SecretKey::new(&mut rng).map_err(|e| e.to_string())
+        SecretKey::new(&mut rng)
     }
 
     // Public key türetme
@@ -323,7 +323,7 @@ impl ProofValidator {
 
     pub fn verify_proof(&mut self, transaction: &Transaction) -> Result<bool, String> {
         // Cache kontrolü
-        let cache_key = format!("{}_{}", transaction.hash, transaction.sender);
+        let cache_key = format!("{}_{}", transaction.hash, transaction.from);
         if let Some(&valid) = self.proof_cache.get(&cache_key) {
             return Ok(valid);
         }
@@ -340,10 +340,10 @@ impl ProofValidator {
     fn verify_merkle_proof(&self, transaction: &Transaction) -> Result<bool, String> {
         // Basit merkle proof doğrulama
         let transaction_hash = Keccak256::digest(transaction.hash.as_bytes());
-        let proof_hash = Keccak256::digest(format!("{}_{}", transaction.sender, transaction.nonce).as_bytes());
+        let proof_hash = Keccak256::digest(format!("{}_{}", transaction.from, transaction.nonce).as_bytes());
         
         // Merkle root ile karşılaştır
-        if let Some(expected_root) = self.merkle_roots.get(&transaction.sender) {
+        if let Some(expected_root) = self.merkle_roots.get(&transaction.from) {
             let computed_root = Keccak256::digest([&transaction_hash[..], &proof_hash[..]].concat());
             let computed_root_hex = format!("0x{:x}", computed_root);
             Ok(computed_root_hex == *expected_root)

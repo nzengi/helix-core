@@ -193,7 +193,7 @@ impl MetricsManager {
                 gauges.insert(config.name, gauge);
             }
             MetricType::Histogram => {
-                let histogram = Histogram::with_opts(Opts::new(&config.name, &config.description))?;
+                let histogram = Histogram::with_opts(HistogramOpts::new(&config.name, &config.description))?;
                 self.registry.register(Box::new(histogram.clone()))?;
                 let mut histograms = self.histograms.lock().await;
                 histograms.insert(config.name, histogram);
@@ -337,7 +337,7 @@ impl MetricsManager {
         let net = self.get_network_metrics().await;
         let bc = self.get_blockchain_metrics().await;
 
-        let mut health_score = 1.0;
+        let mut health_score: f64 = 1.0;
 
         // CPU kullanımı kontrolü
         if perf.cpu_usage > 80.0 {
