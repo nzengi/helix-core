@@ -516,17 +516,53 @@ impl RotaryBFT {
     }
 
     pub async fn get_pending_transactions(&self) -> Result<Vec<Transaction>> {
-        self.chain_state.get_pending_transactions().await
+        let state_txs = self.chain_state.get_pending_transactions().await?;
+        
+        let consensus_txs = state_txs.into_iter().map(|tx| Transaction {
+            hash: tx.hash,
+            from: tx.from,
+            to: tx.to,
+            amount: tx.amount,
+            gas_price: tx.gas_price,
+            gas_limit: tx.gas_limit,
+            nonce: tx.nonce,
+            data: tx.data,
+            signature: tx.signature,
+            timestamp: chrono::DateTime::from_timestamp(tx.timestamp as i64, 0)
+                .unwrap_or_else(|| Utc::now()),
+        }).collect();
+        
+        Ok(consensus_txs)
     }
 
     pub async fn add_transaction(&self, transaction: Transaction) -> Result<()> {
+        // Convert consensus transaction to state transaction
+        let state_transaction = crate::state::Transaction {
+            id: transaction.hash.clone(),
+            hash: transaction.hash.clone(),
+            from: transaction.from.clone(),
+            to: transaction.to.clone(),
+            value: transaction.amount,
+            amount: transaction.amount,
+            fee: transaction.gas_price * transaction.gas_limit,
+            gas_limit: transaction.gas_limit,
+            gas_price: transaction.gas_price,
+            gas_used: 0,
+            nonce: transaction.nonce,
+            data: transaction.data.clone(),
+            signature: transaction.signature.clone(),
+            timestamp: transaction.timestamp.timestamp() as u64,
+            block_height: 0,
+            status: crate::state::TransactionStatus::Pending,
+        };
+
         // Validate transaction first
-        if !self.chain_state.validate_transaction(&transaction).await? {
+        if !self.chain_state.validate_transaction(&state_transaction).await? {
             anyhow::bail!("Transaction validation failed");
         }
 
         // Add to pending transactions
-        self.chain_state.add_pending_transaction(transaction).await
+        self.chain_state.add_pending_transaction(state_transaction).await
     }
 
     pub async fn get_validator(&self, address: &str) -> Option<Validator> {
@@ -583,9 +619,41 @@ impl RotaryBFT {
     }
 
     pub async fn finalize_block(&self, block: &Block) -> Result<()> {
-        // Add any finalization logic here
-        // For now, just ensure the block is added to the chain
-        self.chain_state.add_block(block).await
+        // Convert consensus block to state block
+        let state_block = crate::state::Block {
+            index: block.height,
+            timestamp: block.timestamp.timestamp() as u64,
+            previous_hash: block.previous_hash.clone(),
+            merkle_root: block.merkle_root.clone(),
+            transactions: block.transactions.iter().map(|tx| crate::state::Transaction {
+                id: tx.hash.clone(),
+                hash: tx.hash.clone(),
+                from: tx.from.clone(),
+                to: tx.to.clone(),
+                value: tx.amount,
+                amount: tx.amount,
+                fee: tx.gas_price * tx.gas_limit,
+                gas_limit: tx.gas_limit,
+                gas_price: tx.gas_price,
+                gas_used: 21000, // Default gas used
+                nonce: tx.nonce,
+                data: tx.data.clone(),
+                signature: tx.signature.clone(),
+                timestamp: tx.timestamp.timestamp() as u64,
+                block_height: block.height,
+                status: crate::state::TransactionStatus::Confirmed,
+            }).collect(),
+            hash: block.hash.clone(),
+            signatures: vec![block.signature.clone()],
+            validator: block.validator.clone(),
+            gas_limit: block.transactions.iter().map(|tx| tx.gas_limit).sum(),
+            gas_used: block.transactions.iter().map(|_| 21000u64).sum(), // Default gas used per tx
+            size: 1024, // Default block size
+            nonce: 0,   // Default nonce
+        };
+        
+        // Add block to chain
+        self.chain_state.add_block(&state_block).await
     }
 }
 

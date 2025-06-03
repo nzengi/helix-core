@@ -489,10 +489,13 @@ impl MessageHandler for BlockchainMessageHandler {
                     fee: tx.gas_price * tx.gas_limit,
                     gas_limit: tx.gas_limit,
                     gas_price: tx.gas_price,
+                    gas_used: 0,
                     nonce: tx.nonce,
                     data: tx.data.clone(),
                     signature: tx.signature.clone(),
                     timestamp: tx.timestamp.timestamp() as u64,
+                    block_height: 0,
+                    status: crate::state::TransactionStatus::Pending,
                 };
 
                 if self.chain_state.validate_transaction(&state_tx).await.unwrap_or(false) {
@@ -516,14 +519,21 @@ impl MessageHandler for BlockchainMessageHandler {
                         fee: tx.gas_price * tx.gas_limit,
                         gas_limit: tx.gas_limit,
                         gas_price: tx.gas_price,
+                        gas_used: 21000, // Default gas used
                         nonce: tx.nonce,
                         data: tx.data.clone(),
                         signature: tx.signature.clone(),
                         timestamp: tx.timestamp.timestamp() as u64,
+                        block_height: block.height,
+                        status: crate::state::TransactionStatus::Confirmed,
                     }).collect(),
                     hash: block.hash.clone(),
                     signatures: vec![block.signature.clone()],
                     validator: block.validator.clone(),
+                    gas_limit: block.transactions.iter().map(|tx| tx.gas_limit).sum(),
+                    gas_used: block.transactions.iter().map(|_| 21000u64).sum(),
+                    size: 1024, // Default block size
+                    nonce: 0,   // Default nonce
                 };
 
                 self.chain_state.add_block(&state_block).await?;
@@ -551,14 +561,21 @@ impl MessageHandler for BlockchainMessageHandler {
                             fee: tx.gas_price * tx.gas_limit,
                             gas_limit: tx.gas_limit,
                             gas_price: tx.gas_price,
+                            gas_used: 21000, // Default gas used
                             nonce: tx.nonce,
                             data: tx.data.clone(),
                             signature: tx.signature.clone(),
                             timestamp: tx.timestamp.timestamp() as u64,
+                            block_height: block.height,
+                            status: crate::state::TransactionStatus::Confirmed,
                         }).collect(),
                         hash: block.hash.clone(),
                         signatures: vec![block.signature.clone()],
                         validator: block.validator.clone(),
+                        gas_limit: block.transactions.iter().map(|tx| tx.gas_limit).sum(),
+                        gas_used: block.transactions.iter().map(|_| 21000u64).sum(),
+                        size: 1024, // Default block size
+                        nonce: 0,   // Default nonce
                     };
                     self.chain_state.add_block(&state_block).await?;
                 }
