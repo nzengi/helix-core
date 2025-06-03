@@ -18,6 +18,7 @@ pub struct NetworkConfig {
     pub listen_port: u16,
     pub max_peers: usize,
     pub bootstrap_nodes: Vec<String>,
+    pub chain_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,6 +61,7 @@ pub struct LoggingConfig {
     pub level: String,
     pub file: Option<String>,
     pub console: bool,
+    pub enable_metrics: bool,
 }
 
 impl Config {
@@ -72,10 +74,11 @@ impl Config {
     pub fn default() -> Self {
         Self {
             network: NetworkConfig {
-                listen_addr: "127.0.0.1".to_string(),
+                listen_addr: "0.0.0.0".to_string(),
                 listen_port: 8080,
                 max_peers: 50,
                 bootstrap_nodes: vec![],
+                chain_id: "helix-mainnet-1".to_string(),
             },
             consensus: ConsensusConfig {
                 min_validators: 3,

@@ -234,6 +234,26 @@ impl CryptoManager {
         self.keypairs.keys().cloned().collect()
     }
 
+    pub async fn sign_block(&self, block: &crate::consensus::Block) -> Result<String, String> {
+        // Create block data for signing
+        let block_data = format!(
+            "{}{}{}{}{}",
+            block.height,
+            block.timestamp.timestamp(),
+            block.previous_hash,
+            block.merkle_root,
+            block.validator
+        );
+
+        self.sign_data(block_data.as_bytes())
+    }
+
+    pub async fn verify_block_signature(&self, _block: &crate::consensus::Block) -> Result<bool, String> {
+        // Simplified implementation - always return true for now
+        // In production, implement proper signature verification
+        Ok(true)
+    }
+
     pub fn create_shared_secret(&self, our_private_key: &[u8], their_public_key: &[u8]) -> Result<Vec<u8>, String> {
         // Simple implementation using hash combination
         // In production, use proper ECDH

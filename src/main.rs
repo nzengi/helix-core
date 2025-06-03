@@ -1,4 +1,4 @@
-use helix_chain::{HelixNode, config::Config};
+use helix_chain::{HelixNode, config::Config, consensus::Transaction};
 use std::sync::Arc;
 use axum::{
     routing::{get, post},
@@ -11,10 +11,47 @@ use axum::{
 use tower_http::{trace::TraceLayer, cors::CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use anyhow::Result;
+use serde::{Serialize, Deserialize};
+use sha3::Digest;
 
 #[derive(Clone)]
 struct AppState {
     node: Arc<HelixNode>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ApiResponse<T> {
+    success: bool,
+    data: Option<T>,
+    error: Option<String>,
+}
+
+impl<T> ApiResponse<T> {
+    fn success(data: T) -> Self {
+        Self {
+            success: true,
+            data: Some(data),
+            error: None,
+        }
+    }
+
+    fn error(message: String) -> Self {
+        Self {
+            success: false,
+            data: None,
+            error: Some(message),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+struct TransactionRequest {
+    from: String,
+    to: String,
+    amount: u64,
+    gas_price: u64,
+    gas_limit: u64,
+    data: Option<String>,
 }
 
 #[tokio::main]
@@ -43,8 +80,9 @@ async fn main() -> Result<()> {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    // Start server
-    let bind_addr = format!("0.0.0.0:{}", config.api.port);
+    // Start server  
+    let port = config.api.port;
+    let bind_addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
 
     tracing::info!("🚀 HelixChain node running on http://{}", bind_addr);
@@ -83,10 +121,31 @@ async fn get_node_status(State(state): State<AppState>) -> impl IntoResponse {
 
 async fn submit_transaction(
     State(state): State<AppState>,
-    Json(tx): Json<serde_json::Value>,
+    Json(tx_req): Json<TransactionRequest>,
 ) -> impl IntoResponse {
-    // TODO: Implement transaction submission with proper validation
-    (StatusCode::NOT_IMPLEMENTED, "Not implemented yet").into_response()
+    // Create transaction from request
+    let transaction = Transaction {
+        hash: format!("0x{:x}", sha3::Keccak256::digest(
+            format!("{}{}{}", tx_req.from, tx_req.to, tx_req.amount).as_bytes()
+        )),
+        from: tx_req.from,
+        to: tx_req.to,
+        amount: tx_req.amount,
+        gas_price: tx_req.gas_price,
+        gas_limit: tx_req.gas_limit,
+        nonce: 0, // Will be set by the node
+        data: tx_req.data.unwrap_or_default().into_bytes(),
+        signature: String::new(), // Will be signed by the node
+        timestamp: chrono::Utc::now(),
+    };
+
+    match state.node.submit_transaction(transaction).await {
+        Ok(tx_hash) => (StatusCode::OK, Json(ApiResponse::success(tx_hash))).into_response(),
+        Err(e) => {
+            tracing::error!("Failed to submit transaction: {}", e);
+            (StatusCode::BAD_REQUEST, Json(ApiResponse::<String>::error(e.to_string()))).into_response()
+        }
+    }
 }
 
 async fn get_balance(
