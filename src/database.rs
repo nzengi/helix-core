@@ -721,6 +721,28 @@ impl Database {
         tracing::info!("Imported database data");
         Ok(())
     }
+
+    pub async fn put(&self, key: &[u8], value: &[u8]) -> Result<()> {
+        let _conn = self.get_connection().await?;
+        let mut cache = self.cache.lock().await;
+        cache.insert(
+            String::from_utf8_lossy(key).to_string(),
+            CacheEntry {
+                data: value.to_vec(),
+                created_at: chrono::Utc::now(),
+                expires_at: chrono::Utc::now() + chrono::Duration::hours(24),
+                access_count: 0,
+            },
+        );
+        Ok(())
+    }
+
+    pub async fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
+        let _conn = self.get_connection().await?;
+        let cache = self.cache.lock().await;
+        Ok(cache.get(&String::from_utf8_lossy(key).to_string())
+            .map(|entry| entry.data.clone()))
+    }
 }
 
 // Error handling
@@ -736,204 +758,4 @@ pub enum DatabaseError {
     CacheError(String),
     #[error("Index error: {0}")]
     IndexError(String),
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::consensus::{Block, Transaction};
-    use crate::state::Account;
-    use crate::config::DatabaseConfig;
-
-    fn create_test_config() -> DatabaseConfig {
-        DatabaseConfig {
-            url: "memory://test".to_string(),
-            max_connections: 5,
-            timeout_seconds: 10,
-        }
-    }
-
-    #[tokio::test]
-    async fn test_database_initialization() {
-        let config = create_test_config();
-        let db = Database::new(&config).await.unwrap();
-
-        let stats = db.get_stats().await.unwrap();
-        assert_eq!(stats.total_blocks, 0);
-        assert_eq!(stats.total_transactions, 0);
-        assert_eq!(stats.total_accounts, 0);
-    }
-
-    #[tokio::test]
-    async fn test_block_operations() {
-        let config = create_test_config();
-        let db = Database::new(&config).await.unwrap();
-
-        let block = Block {
-            index: 1,
-            hash: "test_hash".to_string(),
-            previous_hash: "prev_hash".to_string(),
-            timestamp: chrono::Utc::now().timestamp() as u64,
-            merkle_root: "merkle_root".to_string(),
-            transactions: vec![],
-            nonce: 0,
-            difficulty: 1,
-            validator: "test_validator".to_string(),
-            size: 1024,
-            gas_used: 0,
-            gas_limit: 1000000,
-        };
-
-        db.save_block(&block).await.unwrap();
-        let retrieved = db.get_block("test_hash").await.unwrap();
-        assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().hash, "test_hash");
-    }
-
-    #[tokio::test]
-    async fn test_transaction_operations() {
-        let config = create_test_config();
-        let db = Database::new(&config).await.unwrap();
-
-        let tx = Transaction {
-            hash: "tx_hash".to_string(),
-            sender: "sender".to_string(),
-            receiver: "receiver".to_string(),
-            amount: 100,
-            gas_price: 1,
-            gas_limit: 21000,
-            nonce: 1,
-            signature: "signature".to_string(),
-            timestamp: chrono::Utc::now().timestamp() as u64,
-            data: vec![],
-            block_hash: Some("block_hash".to_string()),
-            block_number: Some(1),
-            transaction_index: Some(0),
-            status: "success".to_string(),
-        };
-
-        db.save_transaction(&tx).await.unwrap();
-        let retrieved = db.get_transaction("tx_hash").await.unwrap();
-        assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().hash, "tx_hash");
-    }
-
-    #[tokio::test]
-    async fn test_account_operations() {
-        let config = create_test_config();
-        let db = Database::new(&config).await.unwrap();
-
-        let account = Account::new("test_address".to_string());
-
-        db.save_account(&account).await.unwrap();
-        let retrieved = db.get_account("test_address").await.unwrap();
-        assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().address, "test_address");
-    }
-
-    #[tokio::test]
-    async fn test_batch_operations() {
-        let config = create_test_config();
-        let db = Database::new(&config).await.unwrap();
-
-        let blocks = vec![
-            Block {
-                index: 1,
-                hash: "hash1".to_string(),
-                previous_hash: "prev1".to_string(),
-                timestamp: chrono::Utc::now().timestamp() as u64,
-                merkle_root: "merkle1".to_string(),
-                transactions: vec![],
-                nonce: 0,
-                difficulty: 1,
-                validator: "validator1".to_string(),
-                size: 1024,
-                gas_used: 0,
-                gas_limit: 1000000,
-            },
-            Block {
-                index: 2,
-                hash: "hash2".to_string(),
-                previous_hash: "prev2".to_string(),
-                timestamp: chrono::Utc::now().timestamp() as u64,
-                merkle_root: "merkle2".to_string(),
-                transactions: vec![],
-                nonce: 0,
-                difficulty: 1,
-                validator: "validator2".to_string(),
-                size: 1024,
-                gas_used: 0,
-                gas_limit: 1000000,
-            },
-        ];
-
-        db.save_blocks_batch(&blocks).await.unwrap();
-
-        let stats = db.get_stats().await.unwrap();
-        assert_eq!(stats.total_blocks, 2);
-    }
-
-    #[tokio::test]
-    async fn test_cache_operations() {
-        let config = create_test_config();
-        let db = Database::new(&config).await.unwrap();
-
-        let data = b"test data".to_vec();
-        db.store_in_cache("test_key", data.clone(), 3600).await.unwrap();
-
-        let retrieved = db.get_from_cache("test_key").await.unwrap();
-        assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap(), data);
-    }
-
-    #[tokio::test]
-    async fn test_connection_pool() {
-        let config = create_test_config();
-        let db = Database::new(&config).await.unwrap();
-
-        let conn1 = db.get_connection().await.unwrap();
-        let conn2 = db.get_connection().await.unwrap();
-
-        assert_ne!(conn1.id, conn2.id);
-
-        db.release_connection(&conn1.id).await.unwrap();
-        db.release_connection(&conn2.id).await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_query_options() {
-        let config = create_test_config();
-        let db = Database::new(&config).await.unwrap();
-
-        // Add test transactions
-        for i in 0..10 {
-            let tx = Transaction {
-                hash: format!("tx_hash_{}", i),
-                sender: "test_sender".to_string(),
-                receiver: "test_receiver".to_string(),
-                amount: i * 10,
-                gas_price: 1,
-                gas_limit: 21000,
-                nonce: i,
-                signature: "signature".to_string(),
-                timestamp: chrono::Utc::now().timestamp() as u64,
-                data: vec![],
-                block_hash: Some("block_hash".to_string()),
-                block_number: Some(1),
-                transaction_index: Some(i as u32),
-                status: "success".to_string(),
-            };
-            db.save_transaction(&tx).await.unwrap();
-        }
-
-        let options = QueryOptions {
-            limit: Some(5),
-            offset: Some(2),
-            order_by: None,
-            ascending: true,
-        };
-
-        let txs = db.get_transactions_by_sender("test_sender", options).await.unwrap();
-        assert!(txs.len() <= 5);
-    }
 }

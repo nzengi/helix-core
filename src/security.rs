@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -143,7 +142,7 @@ impl SecurityManager {
     // Güvenlik anahtarı oluşturma
     pub fn generate_security_key(&self) -> Result<SecretKey, String> {
         let mut rng = rand::rngs::OsRng;
-        SecretKey::new(&mut rng)
+        Ok(SecretKey::new(&mut rng))
     }
 
     // Public key türetme

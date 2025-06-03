@@ -1,9 +1,8 @@
-
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
-use secp256k1::{Secp256k1, SecretKey, PublicKey, Message};
+use secp256k1::{Secp256k1, SecretKey, PublicKey, Message, ecdsa::{RecoveryId, RecoverableSignature}};
 use sha3::{Keccak256, Digest};
 use rand::{rngs::OsRng, RngCore};
 use anyhow::Result;
@@ -270,8 +269,8 @@ impl HelixWallet {
         let signature = secp256k1::ecdsa::Signature::from_compact(&signature_bytes)?;
 
         // Try to recover public key from signature
-        let recovery_id = secp256k1::ecdsa::RecoveryId::from_i32(0)?;
-        let recovered_pubkey = self.secp.recover_ecdsa(&message, &secp256k1::ecdsa::RecoverableSignature::from_compact(&signature_bytes, recovery_id)?)?;
+        let recovery_id = RecoveryId::from_i32(0)?;
+        let recovered_pubkey = self.secp.recover_ecdsa(&message, &RecoverableSignature::from_compact(&signature_bytes, recovery_id)?)?;
         
         let expected_address = Address::from_public_key(&recovered_pubkey);
         let from_address = Address::from(tx.from.clone());

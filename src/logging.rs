@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, warn, error, debug, Level};
@@ -85,17 +84,17 @@ impl Metrics {
 
     pub fn increment_counter(&self, name: &str) {
         let name_owned = name.to_string();
-        metrics::increment_counter!(name_owned);
+        metrics::counter!(name_owned).increment(1);
     }
 
     pub fn record_histogram(&self, name: &str, value: f64) {
         let name_owned = name.to_string();
-        metrics::histogram!(name_owned, value);
+        metrics::histogram!(name_owned).record(value);
     }
 
     pub fn set_gauge(&self, name: &str, value: f64) {
         let name_owned = name.to_string();
-        metrics::gauge!(name_owned, value);
+        metrics::gauge!(name_owned).set(value);
     }
 }
 
@@ -390,6 +389,7 @@ mod tests {
             level: "INFO".to_string(),
             file: Some("test.log".to_string()),
             enable_metrics: false,
+            console: true,
         };
 
         let logger = Logger::new(config);
@@ -402,6 +402,7 @@ mod tests {
             level: "DEBUG".to_string(),
             file: Some("test.log".to_string()),
             enable_metrics: false,
+            console: true,
         };
 
         let logger = Logger::new(config).unwrap();

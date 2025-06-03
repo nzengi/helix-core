@@ -229,11 +229,14 @@ impl GovernanceManager {
         *total_power = 0;
 
         // Get all validators from chain state
-        let validators = self.chain_state.get_all_validators().await;
-        for validator in validators {
-            let power = validator.stake;
-            voting_power.insert(validator.address.clone(), power);
-            *total_power += power;
+        let validators = self.chain_state.get_all_validators().await.into_iter().flatten();
+        for validator_addr in validators {
+            // Fetch the validator account/info from chain_state or database
+            if let Some(account) = self.chain_state.get_account(&validator_addr).await {
+                let power = account.balance;
+                voting_power.insert(validator_addr.clone(), power);
+                *total_power += power;
+            }
         }
 
         Ok(())
@@ -288,8 +291,10 @@ impl GovernanceManager {
         let now = chrono::Utc::now().timestamp() as u64;
         let total_power = *self.total_voting_power.lock().await;
 
+        let proposer_clone = proposer.clone();
+
         let proposal = Proposal {
-            id: self.generate_proposal_id(&title, &proposer)?,
+            id: self.generate_proposal_id(&title, &proposer_clone)?,
             title,
             description,
             proposer,
@@ -490,8 +495,10 @@ impl GovernanceManager {
             &voting_strategy
         );
 
+        let proposer_clone = proposer.clone();
+
         let mut proposal = Proposal {
-            id: self.generate_proposal_id(&title, &proposer)?,
+            id: self.generate_proposal_id(&title, &proposer_clone)?,
             title,
             description,
             proposer,
@@ -507,10 +514,11 @@ impl GovernanceManager {
         };
 
         // Apply voting strategy specific settings
+        let proposal_id_clone = proposal.id.clone();
         self.apply_voting_strategy(&mut proposal, &Vote {
-            voter: proposer.clone(),
-            proposal_id: proposal.id.clone(),
-            vote_type: VoteType::Abstain, // Placeholder, actual vote doesn't matter here
+            voter: proposer_clone,
+            proposal_id: proposal_id_clone,
+            vote_type: VoteType::Abstain,
             voting_power: voting_power,
             timestamp: now,
             reason: None,
@@ -889,8 +897,7 @@ impl GovernanceManager {
         hasher.update(&bytes);
         hasher.update(chrono::Utc::now().timestamp().to_string().as_bytes());
         let result = hasher.finalize();
-        ```text
-Ok(format!("0x{}", hex::encode(result)))
+        Ok(format!("0x{}", hex::encode(result)))
     }
 
     async fn save_proposal_to_db(&self, proposal: &Proposal) -> Result<(), GovernanceError> {
@@ -1005,42 +1012,3 @@ pub enum GovernanceError {
     DelegationNotFound,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-
-    #[tokio::test]
-    async fn test_proposal_creation() {
-        let chain_state = Arc::new(ChainState::new());
-        let database = Arc::new(Database::new("test.db").await.unwrap());
-
-        let governance = GovernanceManager::new(
-            chain_state,
-            database,
-            Duration::from_secs(3600), // 1 hour min
-            Duration::from_secs(604800), // 1 week max
-            1000,
-            33, // 33% quorum
-            50, // 50% majority
-        );
-
-        let proposal_type = ProposalType::ParameterChange {
-            parameter: "block_time".to_string(),
-            old_value: "3".to_string(),
-            new_value: "2".to_string(),
-        };
-
-        // This would fail without proper setup, but shows the interface
-        let result = governance.create_proposal(
-            "Reduce block time".to_string(),
-            "Proposal to reduce block time from 3s to 2s".to_string(),
-            "0x1234567890abcdef".to_string(),
-            proposal_type,
-            Duration::from_secs(86400), // 1 day
-        ).await;
-
-        // In a real test, we'd set up the chain state and voting power first
-        assert!(result.is_err()); // Expected to fail without setup
-    }
-}

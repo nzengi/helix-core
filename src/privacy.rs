@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
@@ -8,15 +7,16 @@ use std::time::{Duration, Instant};
 use sha3::{Keccak256, Digest};
 use rand::{rngs::OsRng, RngCore};
 use curve25519_dalek::{
-    constants::RISTRETTO_BASEPOINT_POINT,
-    ristretto::{RistrettoPoint, CompressedRistretto},
+    ristretto::{CompressedRistretto, RistrettoPoint},
     scalar::Scalar,
-    traits::{Identity, IsIdentity},
+    constants::RISTRETTO_BASEPOINT_POINT,
+    traits::IsIdentity,
 };
+use curve25519_dalek_ng::{scalar::Scalar as NgScalar, ristretto::CompressedRistretto as NgCompressedRistretto};
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 use merlin::Transcript;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RingSignature {
     pub message: Vec<u8>,
     pub key_image: CompressedRistretto,
@@ -34,7 +34,7 @@ pub struct ConfidentialTransaction {
     pub transaction_hash: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfidentialInput {
     pub commitment: CompressedRistretto,
     pub amount: u64,
@@ -42,7 +42,7 @@ pub struct ConfidentialInput {
     pub ring_signature: RingSignature,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfidentialOutput {
     pub commitment: CompressedRistretto,
     pub amount: u64,
@@ -52,9 +52,9 @@ pub struct ConfidentialOutput {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZeroKnowledgeProof {
-    pub statement: Vec<u8>,
+    pub commitment: CompressedRistretto,
     pub proof: Vec<u8>,
-    pub public_inputs: Vec<Vec<u8>>,
+    pub public_inputs: Vec<CompressedRistretto>,
     pub timestamp: u64,
 }
 
@@ -67,14 +67,14 @@ pub struct MixerTransaction {
     pub transaction_hash: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MixerInput {
     pub commitment: CompressedRistretto,
     pub nullifier: Vec<u8>,
     pub proof: ZeroKnowledgeProof,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MixerOutput {
     pub commitment: CompressedRistretto,
     pub recipient: String,
@@ -274,9 +274,12 @@ impl PrivacyManager {
         )?;
 
         let zk_proof = ZeroKnowledgeProof {
-            statement,
+            commitment: CompressedRistretto::from_slice(&statement).map_err(|e| PrivacyError::InvalidCommitment)?,
             proof,
-            public_inputs,
+            public_inputs: public_inputs.iter()
+                .map(|input| CompressedRistretto::from_slice(input))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|e| PrivacyError::InvalidCommitment)?,
             timestamp: chrono::Utc::now().timestamp() as u64,
         };
 
@@ -511,7 +514,7 @@ impl PrivacyManager {
         let mut transcript = Transcript::new(b"mixer_proof");
         transcript.append_message(b"commitment", commitment.as_bytes());
         transcript.append_message(b"nullifier", nullifier);
-        transcript.append_message(b"statement", &proof.statement);
+        transcript.append_message(b"commitment", proof.commitment.as_bytes());
 
         let mut expected_proof_bytes = [0u8; 128];
         transcript.challenge_bytes(b"proof", &mut expected_proof_bytes);
@@ -692,9 +695,8 @@ impl PrivacyManager {
         transcript.append_message(b"amount", &amount.to_le_bytes());
         transcript.append_message(b"blinding", blinding_factor.as_bytes());
 
-        // Convert curve25519_dalek::Scalar to curve25519_dalek_ng::Scalar
         let blinding_bytes = blinding_factor.to_bytes();
-        let ng_blinding = curve25519_dalek_ng::scalar::Scalar::from_bytes_mod_order(blinding_bytes);
+        let ng_blinding = NgScalar::from_bytes_mod_order(blinding_bytes);
 
         let (proof, _) = RangeProof::prove_single(
             &self.bulletproof_gens,
@@ -714,10 +716,8 @@ impl PrivacyManager {
         proof: &RangeProof,
         commitment: &CompressedRistretto,
     ) -> Result<bool, PrivacyError> {
-        // Convert to bulletproofs compatible commitment
         let commitment_bytes = commitment.as_bytes();
-        let ng_commitment = curve25519_dalek_ng::ristretto::CompressedRistretto::from_slice(commitment_bytes)
-            .map_err(|_| PrivacyError::InvalidCommitment)?;
+        let ng_commitment = NgCompressedRistretto::from_slice(commitment_bytes);
 
         let result = proof.verify_single(
             &self.bulletproof_gens,
@@ -757,10 +757,10 @@ impl PrivacyManager {
         }
 
         let mut transcript = Transcript::new(b"zk_proof");
-        transcript.append_message(b"statement", &proof.statement);
+        transcript.append_message(b"commitment", proof.commitment.as_bytes());
         
         for input in &proof.public_inputs {
-            transcript.append_message(b"public_input", input);
+            transcript.append_message(b"public_input", input.as_bytes());
         }
 
         let mut expected_proof_bytes = [0u8; 128];

@@ -6,7 +6,7 @@ use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use chrono::{DateTime, Utc};
-use prometheus::{Counter, Gauge, Histogram, Registry, Opts};
+use prometheus::{Counter, Gauge, Histogram, Registry, Opts, HistogramOpts};
 use prometheus::core::{AtomicF64, AtomicU64};
 use prometheus::proto::MetricFamily;
 use prometheus::Encoder;
