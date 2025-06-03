@@ -419,7 +419,7 @@ fn convert_consensus_tx_to_state(consensus_tx: &Transaction) -> crate::state::Tr
         signature: consensus_tx.signature.clone(),
         timestamp: consensus_tx.timestamp.timestamp() as u64,
         block_height: 0,
-        status: "pending".to_string(),
+        status: crate::state::TransactionStatus::Pending,
     }
 }
 
