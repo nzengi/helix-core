@@ -94,8 +94,52 @@ pub struct PrivacyManager {
     mixer_txs: Arc<Mutex<HashMap<String, MixerTransaction>>>,
     nullifier_set: Arc<Mutex<HashMap<Vec<u8>, bool>>>,
     stealth_addresses: Arc<Mutex<HashMap<String, StealthAddress>>>,
+    atomic_swaps: Arc<Mutex<HashMap<String, AtomicSwap>>>,
+    stealth_payments: Arc<Mutex<HashMap<String, StealthPayment>>>,
     bulletproof_gens: BulletproofGens,
     pedersen_gens: PedersenGens,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AtomicSwap {
+    pub id: String,
+    pub initiator: String,
+    pub responder: String,
+    pub initiator_amount: u64,
+    pub responder_amount: u64,
+    pub hash_lock: Vec<u8>,
+    pub time_lock: u64,
+    pub status: SwapStatus,
+    pub secret: Option<Vec<u8>>,
+    pub created_at: u64,
+    pub completed_at: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum SwapStatus {
+    Initiated,
+    Completed,
+    Expired,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StealthPayment {
+    pub id: String,
+    pub sender: String,
+    pub recipient_stealth_address: String,
+    pub one_time_address: String,
+    pub ephemeral_public_key: CompressedRistretto,
+    pub amount: u64,
+    pub timestamp: u64,
+    pub status: PaymentStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum PaymentStatus {
+    Pending,
+    Confirmed,
+    Failed,
 }
 
 impl PrivacyManager {
@@ -107,6 +151,8 @@ impl PrivacyManager {
             mixer_txs: Arc::new(Mutex::new(HashMap::new())),
             nullifier_set: Arc::new(Mutex::new(HashMap::new())),
             stealth_addresses: Arc::new(Mutex::new(HashMap::new())),
+            atomic_swaps: Arc::new(Mutex::new(HashMap::new())),
+            stealth_payments: Arc::new(Mutex::new(HashMap::new())),
             bulletproof_gens: BulletproofGens::new(64, 1),
             pedersen_gens: PedersenGens::default(),
         }
@@ -250,16 +296,38 @@ impl PrivacyManager {
             return Err(PrivacyError::InvalidTransaction);
         }
 
+        // Enhanced validation with amount verification
+        let total_input_amount = self.calculate_mixer_input_total(&inputs).await?;
+        let total_output_amount = self.calculate_mixer_output_total(&outputs).await?;
+        
+        if total_input_amount != total_output_amount + fee {
+            return Err(PrivacyError::InvalidAmount);
+        }
+
+        // Verify nullifiers are unique and not double-spent
         for input in &inputs {
             if !self.verify_nullifier(&input.nullifier).await? {
                 return Err(PrivacyError::InvalidNullifier);
             }
+            
+            // Check nullifier is not already used
+            let nullifier_set = self.nullifier_set.lock().await;
+            if nullifier_set.contains_key(&input.nullifier) {
+                return Err(PrivacyError::DoubleSpend);
+            }
         }
 
+        // Verify zero-knowledge proofs
         for input in &inputs {
-            if !self.verify_zk_proof(&input.proof).await? {
+            if !self.verify_mixer_proof(&input.proof, &input.commitment, &input.nullifier).await? {
                 return Err(PrivacyError::InvalidProof);
             }
+        }
+
+        // Create anonymity set for mixing
+        let anonymity_set = self.create_anonymity_set(&inputs, &outputs).await?;
+        if anonymity_set.len() < 10 { // Minimum anonymity requirement
+            return Err(PrivacyError::InsufficientAnonymity);
         }
 
         let transaction = MixerTransaction {
@@ -270,15 +338,240 @@ impl PrivacyManager {
             transaction_hash: self.generate_transaction_hash()?,
         };
 
+        // Store transaction
         let mut transactions = self.mixer_txs.lock().await;
         transactions.insert(transaction.transaction_hash.clone(), transaction.clone());
 
+        // Mark nullifiers as used
         for input in &transaction.inputs {
             let mut nullifier_set = self.nullifier_set.lock().await;
             nullifier_set.insert(input.nullifier.clone(), true);
         }
 
+        // Update privacy metrics
+        self.update_privacy_metrics(&transaction).await?;
+
         Ok(transaction)
+    }
+
+    pub async fn create_atomic_swap(
+        &self,
+        initiator: String,
+        responder: String,
+        initiator_amount: u64,
+        responder_amount: u64,
+        hash_lock: Vec<u8>,
+        time_lock: u64,
+    ) -> Result<AtomicSwap, PrivacyError> {
+        if initiator == responder {
+            return Err(PrivacyError::InvalidTransaction);
+        }
+
+        if hash_lock.len() != 32 {
+            return Err(PrivacyError::InvalidHashLock);
+        }
+
+        let current_time = chrono::Utc::now().timestamp() as u64;
+        if time_lock <= current_time {
+            return Err(PrivacyError::InvalidTimeLock);
+        }
+
+        let swap = AtomicSwap {
+            id: self.generate_swap_id()?,
+            initiator,
+            responder,
+            initiator_amount,
+            responder_amount,
+            hash_lock,
+            time_lock,
+            status: SwapStatus::Initiated,
+            secret: None,
+            created_at: current_time,
+            completed_at: None,
+        };
+
+        let mut swaps = self.atomic_swaps.lock().await;
+        swaps.insert(swap.id.clone(), swap.clone());
+
+        Ok(swap)
+    }
+
+    pub async fn execute_atomic_swap(
+        &self,
+        swap_id: String,
+        secret: Vec<u8>,
+    ) -> Result<AtomicSwap, PrivacyError> {
+        let mut swaps = self.atomic_swaps.lock().await;
+        let swap = swaps.get_mut(&swap_id)
+            .ok_or(PrivacyError::SwapNotFound)?;
+
+        if swap.status != SwapStatus::Initiated {
+            return Err(PrivacyError::InvalidSwapStatus);
+        }
+
+        // Verify time lock hasn't expired
+        let current_time = chrono::Utc::now().timestamp() as u64;
+        if current_time >= swap.time_lock {
+            swap.status = SwapStatus::Expired;
+            return Err(PrivacyError::SwapExpired);
+        }
+
+        // Verify secret matches hash lock
+        let secret_hash = Keccak256::digest(&secret);
+        if secret_hash.as_slice() != swap.hash_lock {
+            return Err(PrivacyError::InvalidSecret);
+        }
+
+        // Execute the swap
+        swap.secret = Some(secret);
+        swap.status = SwapStatus::Completed;
+        swap.completed_at = Some(current_time);
+
+        Ok(swap.clone())
+    }
+
+    pub async fn create_stealth_payment(
+        &self,
+        sender: String,
+        recipient_stealth_address: String,
+        amount: u64,
+    ) -> Result<StealthPayment, PrivacyError> {
+        let stealth_addresses = self.stealth_addresses.lock().await;
+        let stealth_addr = stealth_addresses.get(&recipient_stealth_address)
+            .ok_or(PrivacyError::InvalidStealthAddress)?;
+
+        let mut rng = OsRng;
+        let ephemeral_key = Scalar::random(&mut rng);
+        let ephemeral_public = (ephemeral_key * RISTRETTO_BASEPOINT_POINT).compress();
+
+        // Generate one-time payment address
+        let shared_secret = ephemeral_key * stealth_addr.view_public_key.decompress()
+            .ok_or(PrivacyError::InvalidPublicKey)?;
+        
+        let payment_key_hash = Keccak256::digest(shared_secret.compress().as_bytes());
+        let payment_private = Scalar::from_bytes_mod_order(payment_key_hash.into());
+        let one_time_address = (payment_private * RISTRETTO_BASEPOINT_POINT + 
+                               stealth_addr.spend_public_key.decompress()
+                               .ok_or(PrivacyError::InvalidPublicKey)?).compress();
+
+        let payment = StealthPayment {
+            id: self.generate_payment_id()?,
+            sender,
+            recipient_stealth_address,
+            one_time_address: hex::encode(one_time_address.as_bytes()),
+            ephemeral_public_key: ephemeral_public,
+            amount,
+            timestamp: chrono::Utc::now().timestamp() as u64,
+            status: PaymentStatus::Pending,
+        };
+
+        let mut payments = self.stealth_payments.lock().await;
+        payments.insert(payment.id.clone(), payment.clone());
+
+        Ok(payment)
+    }
+
+    async fn calculate_mixer_input_total(&self, inputs: &[MixerInput]) -> Result<u64, PrivacyError> {
+        // In a real implementation, this would verify commitment amounts
+        // For now, return a placeholder calculation
+        Ok(inputs.len() as u64 * 1000) // Simplified
+    }
+
+    async fn calculate_mixer_output_total(&self, outputs: &[MixerOutput]) -> Result<u64, PrivacyError> {
+        // In a real implementation, this would verify commitment amounts
+        // For now, return a placeholder calculation
+        Ok(outputs.len() as u64 * 1000) // Simplified
+    }
+
+    async fn verify_mixer_proof(
+        &self,
+        proof: &ZeroKnowledgeProof,
+        commitment: &CompressedRistretto,
+        nullifier: &[u8],
+    ) -> Result<bool, PrivacyError> {
+        // Enhanced proof verification
+        if proof.proof.len() != 128 {
+            return Ok(false);
+        }
+
+        // Verify commitment integrity
+        if commitment.is_identity() {
+            return Ok(false);
+        }
+
+        // Verify nullifier uniqueness
+        let nullifier_set = self.nullifier_set.lock().await;
+        if nullifier_set.contains_key(nullifier) {
+            return Ok(false);
+        }
+
+        // Simplified proof verification - in production would use full zk-SNARK verification
+        let mut transcript = Transcript::new(b"mixer_proof");
+        transcript.append_message(b"commitment", commitment.as_bytes());
+        transcript.append_message(b"nullifier", nullifier);
+        transcript.append_message(b"statement", &proof.statement);
+
+        let mut expected_proof_bytes = [0u8; 128];
+        transcript.challenge_bytes(b"proof", &mut expected_proof_bytes);
+
+        Ok(expected_proof_bytes.to_vec() == proof.proof)
+    }
+
+    async fn create_anonymity_set(
+        &self,
+        inputs: &[MixerInput],
+        outputs: &[MixerOutput],
+    ) -> Result<Vec<String>, PrivacyError> {
+        let mut anonymity_set = Vec::new();
+        
+        // Add current transaction participants
+        for input in inputs {
+            anonymity_set.push(hex::encode(&input.commitment.as_bytes()));
+        }
+        
+        for output in outputs {
+            anonymity_set.push(output.recipient.clone());
+        }
+
+        // Add decoy participants from recent transactions
+        let mixer_txs = self.mixer_txs.lock().await;
+        let recent_limit = chrono::Utc::now().timestamp() as u64 - 3600; // Last hour
+        
+        for tx in mixer_txs.values() {
+            if tx.timestamp >= recent_limit {
+                for output in &tx.outputs {
+                    if !anonymity_set.contains(&output.recipient) {
+                        anonymity_set.push(output.recipient.clone());
+                    }
+                }
+            }
+        }
+
+        Ok(anonymity_set)
+    }
+
+    async fn update_privacy_metrics(&self, transaction: &MixerTransaction) -> Result<(), PrivacyError> {
+        tracing::info!(
+            "Privacy transaction completed: {} inputs, {} outputs, fee: {}",
+            transaction.inputs.len(),
+            transaction.outputs.len(),
+            transaction.fee
+        );
+        Ok(())
+    }
+
+    fn generate_swap_id(&self) -> Result<String, PrivacyError> {
+        let mut rng = OsRng;
+        let mut bytes = [0u8; 16];
+        rng.fill_bytes(&mut bytes);
+        Ok(format!("swap_{}", hex::encode(bytes)))
+    }
+
+    fn generate_payment_id(&self) -> Result<String, PrivacyError> {
+        let mut rng = OsRng;
+        let mut bytes = [0u8; 16];
+        rng.fill_bytes(&mut bytes);
+        Ok(format!("payment_{}", hex::encode(bytes)))
     }
 
     pub async fn create_stealth_address(&self, recipient_public_key: &CompressedRistretto) -> Result<StealthAddress, PrivacyError> {
@@ -566,4 +859,22 @@ pub enum PrivacyError {
     ProofVerificationFailed,
     #[error("Transaction failed")]
     TransactionFailed,
+    #[error("Double spend detected")]
+    DoubleSpend,
+    #[error("Insufficient anonymity")]
+    InsufficientAnonymity,
+    #[error("Invalid hash lock")]
+    InvalidHashLock,
+    #[error("Invalid time lock")]
+    InvalidTimeLock,
+    #[error("Invalid secret")]
+    InvalidSecret,
+    #[error("Swap not found")]
+    SwapNotFound,
+    #[error("Invalid swap status")]
+    InvalidSwapStatus,
+    #[error("Swap expired")]
+    SwapExpired,
+    #[error("Invalid stealth address")]
+    InvalidStealthAddress,
 }

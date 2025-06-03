@@ -97,19 +97,139 @@ impl ShardRouter {
     }
 
     pub async fn route_transaction(&self, transaction: &Transaction) -> Result<u32, ShardError> {
-        let shard_id = self.calculate_shard_id(transaction).await;
+        // Adaptive shard selection based on current load
+        let optimal_shard_id = self.calculate_optimal_shard_id(transaction).await?;
         let mut shards = self.shards.lock().await;
         
-        if let Some(shard) = shards.get_mut(&shard_id) {
+        if let Some(shard) = shards.get_mut(&optimal_shard_id) {
+            // Check shard capacity before routing
+            if shard.pending_txs.len() >= 10000 {
+                // Find alternative shard
+                let alternative_shard_id = self.find_alternative_shard(transaction).await?;
+                if let Some(alt_shard) = shards.get_mut(&alternative_shard_id) {
+                    alt_shard.pending_txs.push(transaction.clone());
+                    self.update_shard_load(alternative_shard_id, 1.0).await?;
+                    return Ok(alternative_shard_id);
+                }
+                return Err(ShardError::LoadBalancingError);
+            }
+
             if self.is_cross_shard_transaction(transaction).await? {
-                self.handle_cross_shard_transaction(transaction, shard_id).await?;
+                self.handle_cross_shard_transaction(transaction, optimal_shard_id).await?;
+                self.create_cross_shard_proof(transaction, optimal_shard_id).await?;
             } else {
                 shard.pending_txs.push(transaction.clone());
-                self.update_shard_load(shard_id, 1.0).await?;
+                self.update_shard_load(optimal_shard_id, 1.0).await?;
+                
+                // Update transaction routing metrics
+                self.update_routing_metrics(optimal_shard_id, transaction).await?;
             }
-            Ok(shard_id)
+            Ok(optimal_shard_id)
         } else {
             Err(ShardError::ShardNotFound)
+        }
+    }
+
+    async fn calculate_optimal_shard_id(&self, transaction: &Transaction) -> Result<u32, ShardError> {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        // Primary shard calculation
+        let mut hasher = DefaultHasher::new();
+        transaction.from.hash(&mut hasher);
+        transaction.to.hash(&mut hasher);
+        let primary_shard = (hasher.finish() % self.total_shards as u64) as u32;
+
+        // Check load balancing
+        let shard_loads = self.shard_loads.lock().await;
+        let primary_load = shard_loads.get(&primary_shard).copied().unwrap_or(0.0);
+        let avg_load = self.calculate_average_load(&shard_loads);
+
+        // If primary shard is overloaded, find better option
+        if primary_load > avg_load * self.rebalance_threshold {
+            for i in 0..self.total_shards {
+                let shard_id = (primary_shard + i) % self.total_shards;
+                let load = shard_loads.get(&shard_id).copied().unwrap_or(0.0);
+                if load < avg_load {
+                    return Ok(shard_id);
+                }
+            }
+        }
+
+        Ok(primary_shard)
+    }
+
+    async fn find_alternative_shard(&self, transaction: &Transaction) -> Result<u32, ShardError> {
+        let shard_loads = self.shard_loads.lock().await;
+        let mut min_load_shard = 0;
+        let mut min_load = f64::MAX;
+
+        for (&shard_id, &load) in shard_loads.iter() {
+            if load < min_load {
+                min_load = load;
+                min_load_shard = shard_id;
+            }
+        }
+
+        if min_load < self.max_shard_load * 0.8 {
+            Ok(min_load_shard)
+        } else {
+            Err(ShardError::LoadBalancingError)
+        }
+    }
+
+    async fn create_cross_shard_proof(&self, transaction: &Transaction, from_shard: ShardId) -> Result<String, ShardError> {
+        use sha3::{Keccak256, Digest};
+        
+        let mut hasher = Keccak256::new();
+        hasher.update(transaction.hash.as_bytes());
+        hasher.update(&from_shard.to_be_bytes());
+        hasher.update(&transaction.timestamp.timestamp().to_be_bytes());
+        
+        // Add validator signatures for proof
+        let shards = self.shards.lock().await;
+        if let Some(shard) = shards.get(&from_shard) {
+            for validator in &shard.validators {
+                hasher.update(validator.as_bytes());
+            }
+        }
+
+        let proof_hash = hasher.finalize();
+        Ok(hex::encode(proof_hash))
+    }
+
+    async fn update_routing_metrics(&self, shard_id: ShardId, transaction: &Transaction) -> Result<(), ShardError> {
+        // Update transaction count per shard
+        let mut shard_loads = self.shard_loads.lock().await;
+        if let Some(load) = shard_loads.get_mut(&shard_id) {
+            *load += self.calculate_transaction_weight(transaction);
+        }
+
+        // Update routing efficiency metrics
+        let efficiency = self.calculate_routing_efficiency(shard_id).await;
+        tracing::debug!("Shard {} routing efficiency: {:.2}%", shard_id, efficiency * 100.0);
+
+        Ok(())
+    }
+
+    fn calculate_transaction_weight(&self, transaction: &Transaction) -> f64 {
+        let base_weight = 1.0;
+        let data_weight = (transaction.data.len() as f64) / 1000.0; // Per KB
+        let gas_weight = (transaction.gas_limit as f64) / 100000.0; // Per 100k gas
+        
+        base_weight + data_weight + gas_weight
+    }
+
+    async fn calculate_routing_efficiency(&self, shard_id: ShardId) -> f64 {
+        let shards = self.shards.lock().await;
+        if let Some(shard) = shards.get(&shard_id) {
+            let total_txs = shard.pending_txs.len() + shard.processed_txs.len();
+            if total_txs == 0 {
+                return 1.0;
+            }
+            shard.processed_txs.len() as f64 / total_txs as f64
+        } else {
+            0.0
         }
     }
 
@@ -148,26 +268,201 @@ impl ShardRouter {
     pub async fn process_cross_shard_messages(&self) -> Result<usize, ShardError> {
         let mut messages = self.cross_shard_messages.lock().await;
         let mut processed_count = 0;
+        let current_time = Utc::now().timestamp() as u64;
+        
+        // Sort messages by timestamp for ordered processing
+        messages.sort_by_key(|msg| msg.timestamp);
         
         for message in messages.iter_mut() {
-            if message.status == MessageStatus::Pending {
-                match self.process_cross_shard_message(message).await {
-                    Ok(()) => {
-                        message.status = MessageStatus::Processed;
-                        processed_count += 1;
+            match message.status {
+                MessageStatus::Pending => {
+                    // Check if message has expired
+                    if current_time - message.timestamp > 3600 { // 1 hour timeout
+                        message.status = MessageStatus::Expired;
+                        continue;
                     }
-                    Err(_) => {
-                        message.retry_count += 1;
-                        if message.retry_count > 3 {
-                            message.status = MessageStatus::Failed;
+
+                    match self.process_cross_shard_message(message).await {
+                        Ok(()) => {
+                            message.status = MessageStatus::Processed;
+                            processed_count += 1;
+                            
+                            // Emit cross-shard completion event
+                            self.emit_cross_shard_event(message).await?;
                         }
+                        Err(e) => {
+                            message.retry_count += 1;
+                            tracing::warn!("Cross-shard message failed: {:?}, retry {}", e, message.retry_count);
+                            
+                            if message.retry_count > 3 {
+                                message.status = MessageStatus::Failed;
+                                self.handle_failed_cross_shard_message(message).await?;
+                            } else {
+                                // Exponential backoff for retries
+                                tokio::time::sleep(std::time::Duration::from_secs(
+                                    2_u64.pow(message.retry_count)
+                                )).await;
+                            }
+                        }
+                    }
+                }
+                MessageStatus::Processing => {
+                    // Check for stuck processing messages
+                    if current_time - message.timestamp > 1800 { // 30 minutes
+                        tracing::warn!("Cross-shard message stuck in processing, resetting to pending");
+                        message.status = MessageStatus::Pending;
+                        message.retry_count += 1;
+                    }
+                }
+                _ => {} // Already processed, failed, or expired
+            }
+        }
+        
+        // Clean up completed and expired messages
+        messages.retain(|msg| {
+            !matches!(msg.status, MessageStatus::Processed | MessageStatus::Expired)
+        });
+
+        // Update cross-shard processing metrics
+        self.update_cross_shard_metrics(processed_count).await?;
+        
+        Ok(processed_count)
+    }
+
+    async fn emit_cross_shard_event(&self, message: &CrossShardMessage) -> Result<(), ShardError> {
+        tracing::info!(
+            "Cross-shard transaction completed: {} -> {}, tx: {}",
+            message.from_shard,
+            message.to_shard,
+            message.transaction.hash
+        );
+        Ok(())
+    }
+
+    async fn handle_failed_cross_shard_message(&self, message: &CrossShardMessage) -> Result<(), ShardError> {
+        tracing::error!(
+            "Cross-shard transaction permanently failed: {} -> {}, tx: {}",
+            message.from_shard,
+            message.to_shard,
+            message.transaction.hash
+        );
+
+        // Could implement compensation logic here
+        // For now, just log the failure
+        Ok(())
+    }
+
+    async fn update_cross_shard_metrics(&self, processed_count: usize) -> Result<(), ShardError> {
+        tracing::debug!("Processed {} cross-shard messages this round", processed_count);
+        Ok(())
+    }
+
+    pub async fn get_cross_shard_statistics(&self) -> CrossShardStats {
+        let messages = self.cross_shard_messages.lock().await;
+        
+        let mut stats = CrossShardStats {
+            total_messages: messages.len(),
+            pending_messages: 0,
+            processing_messages: 0,
+            failed_messages: 0,
+            expired_messages: 0,
+            average_retry_count: 0.0,
+        };
+
+        let mut total_retries = 0;
+        for message in messages.iter() {
+            match message.status {
+                MessageStatus::Pending => stats.pending_messages += 1,
+                MessageStatus::Processing => stats.processing_messages += 1,
+                MessageStatus::Failed => stats.failed_messages += 1,
+                MessageStatus::Expired => stats.expired_messages += 1,
+                _ => {}
+            }
+            total_retries += message.retry_count;
+        }
+
+        if !messages.is_empty() {
+            stats.average_retry_count = total_retries as f64 / messages.len() as f64;
+        }
+
+        stats
+    }
+
+    pub async fn optimize_shard_topology(&self) -> Result<(), ShardError> {
+        let shard_loads = self.shard_loads.lock().await;
+        let avg_load = self.calculate_average_load(&shard_loads);
+        
+        let mut rebalancing_needed = false;
+        for (&shard_id, &load) in shard_loads.iter() {
+            if load > avg_load * 2.0 || load < avg_load * 0.5 {
+                rebalancing_needed = true;
+                break;
+            }
+        }
+
+        drop(shard_loads);
+
+        if rebalancing_needed {
+            tracing::info!("Starting shard topology optimization");
+            self.rebalance_shards().await?;
+            
+            // Update validator assignments based on new topology
+            self.optimize_validator_assignments().await?;
+        }
+
+        Ok(())
+    }
+
+    async fn optimize_validator_assignments(&self) -> Result<(), ShardError> {
+        let mut shards = self.shards.lock().await;
+        let shard_loads = self.shard_loads.lock().await;
+        
+        // Redistribute validators based on shard loads
+        for (&shard_id, &load) in shard_loads.iter() {
+            if let Some(shard) = shards.get_mut(&shard_id) {
+                let optimal_validator_count = ((load / 100.0).ceil() as usize).max(1).min(20);
+                
+                // Adjust validator count if needed
+                if shard.validators.len() > optimal_validator_count {
+                    let excess_validators: Vec<String> = shard.validators
+                        .iter()
+                        .skip(optimal_validator_count)
+                        .cloned()
+                        .collect();
+                    
+                    for validator in excess_validators {
+                        shard.validators.remove(&validator);
+                        // Reassign to underloaded shard
+                        self.reassign_validator_to_underloaded_shard(&validator, &mut shards, &shard_loads).await?;
                     }
                 }
             }
         }
+
+        Ok(())
+    }
+
+    async fn reassign_validator_to_underloaded_shard(
+        &self,
+        validator: &str,
+        shards: &mut HashMap<u32, Shard>,
+        shard_loads: &HashMap<u32, f64>,
+    ) -> Result<(), ShardError> {
+        let avg_load = self.calculate_average_load(shard_loads);
         
-        messages.retain(|msg| msg.status != MessageStatus::Processed);
-        Ok(processed_count)
+        for (&shard_id, &load) in shard_loads.iter() {
+            if load < avg_load * 0.8 {
+                if let Some(shard) = shards.get_mut(&shard_id) {
+                    if shard.validators.len() < 20 {
+                        shard.validators.insert(validator.to_string());
+                        tracing::info!("Reassigned validator {} to shard {}", validator, shard_id);
+                        return Ok(());
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn sync_shards(&self) -> Result<(), ShardError> {
@@ -395,6 +690,16 @@ pub struct ShardStats {
     pub processed_tx_count: usize,
     pub load: f64,
     pub last_sync: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrossShardStats {
+    pub total_messages: usize,
+    pub pending_messages: usize,
+    pub processing_messages: usize,
+    pub failed_messages: usize,
+    pub expired_messages: usize,
+    pub average_retry_count: f64,
 }
 
 pub struct ShardManagerData {

@@ -81,6 +81,33 @@ pub enum VoteType {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoteDelegation {
+    pub delegator: String,
+    pub delegate: String,
+    pub percentage: u8, // 1-100
+    pub timestamp: u64,
+    pub is_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum VotingStrategy {
+    Simple,      // Simple majority
+    Supermajority, // 60%+ approval needed
+    Unanimous,   // 100% approval needed
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VotingStatistics {
+    pub total_proposals: usize,
+    pub active_proposals: usize,
+    pub passed_proposals: usize,
+    pub failed_proposals: usize,
+    pub total_votes_cast: usize,
+    pub average_participation_rate: f64,
+    pub top_voters: Vec<(String, u64)>, // Address, vote count
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Parameter {
     pub name: String,
     pub value: String,
@@ -108,6 +135,7 @@ pub struct GovernanceManager {
     parameters: Arc<Mutex<HashMap<String, Parameter>>>,
     votes: Arc<Mutex<HashMap<String, Vote>>>,
     voting_power: Arc<Mutex<HashMap<String, u64>>>,
+    delegations: Arc<Mutex<HashMap<String, VoteDelegation>>>,
     chain_state: Arc<ChainState>,
     database: Arc<Database>,
     treasury_balance: Arc<Mutex<TreasuryBalance>>,
@@ -308,9 +336,14 @@ impl GovernanceManager {
             return Err(GovernanceError::VotingPeriodEnded);
         }
 
-        // Voting power kontrolü
-        let voting_power = self.get_voting_power(&voter).await?;
-        if voting_power == 0 {
+        // Check if voter has already voted
+        if proposal.votes.contains_key(&voter) {
+            return Err(GovernanceError::AlreadyVoted);
+        }
+
+        // Calculate total voting power including delegations
+        let total_voting_power = self.calculate_total_voting_power(&voter).await?;
+        if total_voting_power == 0 {
             return Err(GovernanceError::NoVotingPower);
         }
 
@@ -318,10 +351,13 @@ impl GovernanceManager {
             voter: voter.clone(),
             proposal_id: proposal_id.to_string(),
             vote_type: vote_type.clone(),
-            voting_power,
+            voting_power: total_voting_power,
             timestamp: now,
             reason,
         };
+
+        // Process delegated votes
+        self.process_delegated_votes(proposal, &voter, &vote_type, total_voting_power).await?;
 
         // Oyu kaydet
         proposal.votes.insert(voter.clone(), vote.clone());
@@ -331,10 +367,252 @@ impl GovernanceManager {
         // Database'e kaydet
         self.save_vote_to_db(&vote).await?;
 
+        // Send vote notification to delegates
+        self.notify_vote_to_delegates(&voter, proposal_id, &vote_type).await?;
+
         // Öneri durumunu güncelle
         self.update_proposal_status(proposal).await?;
 
+        // Update voting statistics
+        self.update_voting_statistics(proposal_id, &vote_type, total_voting_power).await?;
+
         Ok(vote)
+    }
+
+    pub async fn delegate_voting_power(
+        &self,
+        delegator: String,
+        delegate: String,
+        percentage: u8, // 1-100
+    ) -> Result<(), GovernanceError> {
+        if percentage == 0 || percentage > 100 {
+            return Err(GovernanceError::InvalidParameter);
+        }
+
+        if delegator == delegate {
+            return Err(GovernanceError::SelfDelegation);
+        }
+
+        let delegation = VoteDelegation {
+            delegator: delegator.clone(),
+            delegate: delegate.clone(),
+            percentage,
+            timestamp: chrono::Utc::now().timestamp() as u64,
+            is_active: true,
+        };
+
+        // Store delegation
+        let mut delegations = self.delegations.lock().await;
+        delegations.insert(format!("{}:{}", delegator, delegate), delegation);
+
+        // Update delegation cache
+        self.update_delegation_cache(&delegator).await?;
+
+        tracing::info!("Delegation created: {} -> {} ({}%)", delegator, delegate, percentage);
+        Ok(())
+    }
+
+    pub async fn revoke_delegation(
+        &self,
+        delegator: String,
+        delegate: String,
+    ) -> Result<(), GovernanceError> {
+        let mut delegations = self.delegations.lock().await;
+        let key = format!("{}:{}", delegator, delegate);
+        
+        if let Some(mut delegation) = delegations.get_mut(&key) {
+            delegation.is_active = false;
+            tracing::info!("Delegation revoked: {} -> {}", delegator, delegate);
+        } else {
+            return Err(GovernanceError::DelegationNotFound);
+        }
+
+        // Update delegation cache
+        self.update_delegation_cache(&delegator).await?;
+        Ok(())
+    }
+
+    pub async fn create_advanced_proposal(
+        &self,
+        title: String,
+        description: String,
+        proposer: String,
+        proposal_type: ProposalType,
+        duration: Duration,
+        voting_strategy: VotingStrategy,
+        execution_delay: Option<Duration>,
+    ) -> Result<Proposal, GovernanceError> {
+        // Enhanced validation
+        if duration < self.min_proposal_duration || duration > self.max_proposal_duration {
+            return Err(GovernanceError::InvalidDuration);
+        }
+
+        let voting_power = self.get_voting_power(&proposer).await?;
+        if voting_power < self.min_voting_power {
+            return Err(GovernanceError::InsufficientVotingPower);
+        }
+
+        // Check proposal deposit with enhanced validation
+        let deposit_param = self.get_parameter("proposal_deposit").await?;
+        let required_deposit: u64 = deposit_param.value.parse()
+            .map_err(|_| GovernanceError::InvalidParameter)?;
+        
+        // Apply multiplier based on proposal type
+        let actual_deposit = match &proposal_type {
+            ProposalType::EmergencyAction { .. } => required_deposit * 5,
+            ProposalType::ValidatorSetChange { .. } => required_deposit * 3,
+            ProposalType::TreasurySpend { amount, .. } => {
+                let base = required_deposit * 2;
+                if *amount > 1_000_000 {
+                    base * 3 // Higher deposit for large treasury spends
+                } else {
+                    base
+                }
+            }
+            _ => required_deposit,
+        };
+
+        if let Some(account) = self.chain_state.get_account(&proposer).await {
+            if account.balance < actual_deposit {
+                return Err(GovernanceError::InsufficientBalance);
+            }
+        } else {
+            return Err(GovernanceError::InvalidAddress);
+        }
+
+        let now = chrono::Utc::now().timestamp() as u64;
+        let total_power = *self.total_voting_power.lock().await;
+        
+        // Calculate dynamic quorum based on proposal type
+        let (required_quorum, required_majority) = self.calculate_dynamic_requirements(
+            &proposal_type, 
+            total_power,
+            &voting_strategy
+        );
+
+        let mut proposal = Proposal {
+            id: self.generate_proposal_id(&title, &proposer)?,
+            title,
+            description,
+            proposer,
+            proposal_type,
+            start_time: now,
+            end_time: now + duration.as_secs(),
+            status: ProposalStatus::Active,
+            votes: HashMap::new(),
+            required_quorum,
+            required_majority,
+            execution_time: execution_delay.map(|d| now + duration.as_secs() + d.as_secs()),
+            execution_tx: None,
+        };
+
+        // Apply voting strategy specific settings
+        self.apply_voting_strategy(&mut proposal, voting_strategy).await?;
+
+        // Store proposal
+        let mut proposals = self.proposals.lock().await;
+        proposals.insert(proposal.id.clone(), proposal.clone());
+
+        // Database'e kaydet
+        self.save_proposal_to_db(&proposal).await?;
+
+        // Send notifications to stakeholders
+        self.notify_proposal_creation(&proposal).await?;
+
+        Ok(proposal)
+    }
+
+    async fn calculate_total_voting_power(&self, voter: &str) -> Result<u64, GovernanceError> {
+        let base_power = self.get_voting_power(voter).await?;
+        let delegated_power = self.calculate_delegated_power(voter).await?;
+        
+        Ok(base_power + delegated_power)
+    }
+
+    async fn calculate_delegated_power(&self, delegate: &str) -> Result<u64, GovernanceError> {
+        let delegations = self.delegations.lock().await;
+        let mut total_delegated = 0u64;
+
+        for delegation in delegations.values() {
+            if delegation.delegate == delegate && delegation.is_active {
+                let delegator_power = self.get_voting_power(&delegation.delegator).await?;
+                let delegated_amount = (delegator_power * delegation.percentage as u64) / 100;
+                total_delegated += delegated_amount;
+            }
+        }
+
+        Ok(total_delegated)
+    }
+
+    async fn process_delegated_votes(
+        &self,
+        proposal: &mut Proposal,
+        voter: &str,
+        vote_type: &VoteType,
+        voting_power: u64,
+    ) -> Result<(), GovernanceError> {
+        // Process votes from delegators
+        let delegations = self.delegations.lock().await;
+        
+        for delegation in delegations.values() {
+            if delegation.delegate == voter && delegation.is_active {
+                // Check if delegator hasn't voted directly
+                if !proposal.votes.contains_key(&delegation.delegator) {
+                    let delegator_power = self.get_voting_power(&delegation.delegator).await?;
+                    let delegated_vote_power = (delegator_power * delegation.percentage as u64) / 100;
+                    
+                    let delegated_vote = Vote {
+                        voter: delegation.delegator.clone(),
+                        proposal_id: proposal.id.clone(),
+                        vote_type: vote_type.clone(),
+                        voting_power: delegated_vote_power,
+                        timestamp: chrono::Utc::now().timestamp() as u64,
+                        reason: Some(format!("Delegated vote via {}", voter)),
+                    };
+
+                    proposal.votes.insert(delegation.delegator.clone(), delegated_vote);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn calculate_dynamic_requirements(
+        &self,
+        proposal_type: &ProposalType,
+        total_power: u64,
+        voting_strategy: &VotingStrategy,
+    ) -> (u64, u64) {
+        let base_quorum = (total_power * self.quorum_percentage) / 100;
+        let base_majority = (total_power * self.majority_percentage) / 100;
+
+        match proposal_type {
+            ProposalType::EmergencyAction { .. } => {
+                // Emergency actions need higher thresholds
+                ((base_quorum * 150) / 100, (base_majority * 120) / 100)
+            }
+            ProposalType::ValidatorSetChange { .. } => {
+                // Validator changes need supermajority
+                (base_quorum, (base_majority * 110) / 100)
+            }
+            ProposalType::TreasurySpend { amount, .. } => {
+                // Large treasury spends need higher approval
+                if *amount > 1_000_000 {
+                    ((base_quorum * 120) / 100, (base_majority * 110) / 100)
+                } else {
+                    (base_quorum, base_majority)
+                }
+            }
+            _ => {
+                // Apply voting strategy modifiers
+                match voting_strategy {
+                    VotingStrategy::Simple => (base_quorum, base_majority),
+                    VotingStrategy::Supermajority => (base_quorum, (base_majority * 120) / 100),
+                    VotingStrategy::Unanimous => (total_power, total_power),
+                }
+            }
+        }
     }
 
     pub async fn execute_proposal(
