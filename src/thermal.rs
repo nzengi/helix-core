@@ -68,7 +68,7 @@ impl ThermalBalancer {
 
                 // Add to history
                 let reading = ThermalReading {
-                    temperature: temp,
+                    temperature: temp as f64,
                     timestamp: SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
@@ -86,7 +86,7 @@ impl ThermalBalancer {
         }
 
         if component_count > 0 {
-            self.current_temp = total_temp / component_count as f64;
+            self.current_temp = total_temp as f64 / component_count as f64;
             self.efficiency_factor = self.calculate_efficiency_factor();
 
             info!("Temperature updated: {:.2}°C, Efficiency: {:.2}", 

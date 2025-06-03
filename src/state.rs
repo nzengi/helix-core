@@ -838,6 +838,11 @@ impl ChainState {
             return_data: Vec::new(),
         })
     }
+
+    pub async fn get_all_validators(&self) -> Result<Vec<String>, StateError> {
+        let validators = self.validator_set.lock().await;
+        Ok(validators.clone())
+    }
 }
 
 impl Default for ChainState {
@@ -878,8 +883,7 @@ mod tests {
         assert!(account.is_some());
     }
 
-    #[tokio::test]
-    async fn test_balance_operations() {
+    #[tokio::test]    async fn test_balance_operations() {
         let state = ChainState::new();
         state.create_account("0x123".to_string()).await.unwrap();
         let result = state.set_balance("0x123", 1000).await;

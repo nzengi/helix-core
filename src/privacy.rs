@@ -441,7 +441,9 @@ impl PrivacyManager {
             .ok_or(PrivacyError::InvalidStealthAddress)?;
 
         let mut rng = OsRng;
-        let ephemeral_key = Scalar::random(&mut rng);
+        let mut ephemeral_bytes = [0u8; 32];
+        rng.fill_bytes(&mut ephemeral_bytes);
+        let ephemeral_key = Scalar::from_bytes_mod_order(ephemeral_bytes);
         let ephemeral_public = (ephemeral_key * RISTRETTO_BASEPOINT_POINT).compress();
 
         // Generate one-time payment address
@@ -577,7 +579,9 @@ impl PrivacyManager {
     pub async fn create_stealth_address(&self, recipient_public_key: &CompressedRistretto) -> Result<StealthAddress, PrivacyError> {
         let mut rng = OsRng;
         
-        let ephemeral_secret = Scalar::random(&mut rng);
+        let mut ephemeral_bytes = [0u8; 32];
+        rng.fill_bytes(&mut ephemeral_bytes);
+        let ephemeral_secret = Scalar::from_bytes_mod_order(ephemeral_bytes);
         let view_public_key = (ephemeral_secret * RISTRETTO_BASEPOINT_POINT).compress();
         
         let shared_secret = ephemeral_secret * recipient_public_key.decompress()

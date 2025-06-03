@@ -74,13 +74,13 @@ impl StorageManager {
                 if key_bytes.len() != 32 {
                     return Err(StorageError::EncryptionError("Encryption key must be 32 bytes".to_string()));
                 }
-                let key = Key::from_slice(&key_bytes);
+                let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
                 Some(Aes256Gcm::new(key))
             } else {
                 // Rastgele anahtar oluştur
                 let mut key_bytes = [0u8; 32];
                 OsRng.fill_bytes(&mut key_bytes);
-                let key = Key::from_slice(&key_bytes);
+                let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
                 tracing::warn!("Generated random encryption key - data may not be recoverable");
                 Some(Aes256Gcm::new(key))
             }

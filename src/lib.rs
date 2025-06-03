@@ -211,7 +211,7 @@ impl HelixNode {
                     torque: 0.0,
                 }))
             }
-            None => Ok(None),
+            Ok(None) => Ok(None),
         }
     }
 
@@ -248,7 +248,7 @@ impl HelixNode {
                     torque: 0.0,
                 }))
             }
-            None => Ok(None),
+            Ok(None) => Ok(None),
         }
     }
 

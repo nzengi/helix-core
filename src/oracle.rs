@@ -511,7 +511,8 @@ impl OracleManager {
 
     async fn get_next_round_id(&self, oracle_address: &str) -> Result<u64, OracleError> {
         let data_points = self.data_points.lock().await;
-        let points = data_points.get(oracle_address).unwrap_or(&Vec::new());
+        let empty_vec = Vec::new();
+        let points = data_points.get(oracle_address).unwrap_or(&empty_vec);
         Ok(points.len() as u64 + 1)
     }
 

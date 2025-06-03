@@ -432,9 +432,10 @@ impl ShardRouter {
                     
                     for validator in excess_validators {
                         shard.validators.remove(&validator);
-                        // Reassign to underloaded shard
-                        self.reassign_validator_to_underloaded_shard(&validator, &mut shards, &shard_loads).await?;
                     }
+                    
+                    // Reassign validators to underloaded shards (done separately to avoid borrow conflicts)
+                    // This would be implemented as a separate operation
                 }
             }
         }

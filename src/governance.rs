@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
@@ -183,20 +182,20 @@ impl GovernanceManager {
     pub async fn initialize(&self) -> Result<(), GovernanceError> {
         // Initialize default parameters
         self.initialize_default_parameters().await?;
-        
+
         // Update voting power from chain state
         self.update_voting_power().await?;
-        
+
         // Update treasury balance
         self.update_treasury_balance().await?;
-        
+
         Ok(())
     }
 
     async fn initialize_default_parameters(&self) -> Result<(), GovernanceError> {
         let mut parameters = self.parameters.lock().await;
         let now = chrono::Utc::now().timestamp() as u64;
-        
+
         let default_params = vec![
             ("block_time", "3", "Target block time in seconds"),
             ("gas_limit", "30000000", "Maximum gas per block"),
@@ -224,7 +223,7 @@ impl GovernanceManager {
     async fn update_voting_power(&self) -> Result<(), GovernanceError> {
         let mut voting_power = self.voting_power.lock().await;
         let mut total_power = self.total_voting_power.lock().await;
-        
+
         voting_power.clear();
         *total_power = 0;
 
@@ -241,7 +240,7 @@ impl GovernanceManager {
 
     async fn update_treasury_balance(&self) -> Result<(), GovernanceError> {
         let mut treasury = self.treasury_balance.lock().await;
-        
+
         // Get treasury account balance from chain state
         let treasury_address = "0x0000000000000000000000000000000000000001"; // Treasury address
         if let Some(account) = self.chain_state.get_account(treasury_address).await {
@@ -276,7 +275,7 @@ impl GovernanceManager {
         let deposit_param = self.get_parameter("proposal_deposit").await?;
         let required_deposit: u64 = deposit_param.value.parse()
             .map_err(|_| GovernanceError::InvalidParameter)?;
-        
+
         if let Some(account) = self.chain_state.get_account(&proposer).await {
             if account.balance < required_deposit {
                 return Err(GovernanceError::InsufficientBalance);
@@ -287,7 +286,7 @@ impl GovernanceManager {
 
         let now = chrono::Utc::now().timestamp() as u64;
         let total_power = *self.total_voting_power.lock().await;
-        
+
         let proposal = Proposal {
             id: self.generate_proposal_id(&title, &proposer)?,
             title,
@@ -419,7 +418,7 @@ impl GovernanceManager {
     ) -> Result<(), GovernanceError> {
         let mut delegations = self.delegations.lock().await;
         let key = format!("{}:{}", delegator, delegate);
-        
+
         if let Some(mut delegation) = delegations.get_mut(&key) {
             delegation.is_active = false;
             tracing::info!("Delegation revoked: {} -> {}", delegator, delegate);
@@ -456,7 +455,7 @@ impl GovernanceManager {
         let deposit_param = self.get_parameter("proposal_deposit").await?;
         let required_deposit: u64 = deposit_param.value.parse()
             .map_err(|_| GovernanceError::InvalidParameter)?;
-        
+
         // Apply multiplier based on proposal type
         let actual_deposit = match &proposal_type {
             ProposalType::EmergencyAction { .. } => required_deposit * 5,
@@ -482,7 +481,7 @@ impl GovernanceManager {
 
         let now = chrono::Utc::now().timestamp() as u64;
         let total_power = *self.total_voting_power.lock().await;
-        
+
         // Calculate dynamic quorum based on proposal type
         let (required_quorum, required_majority) = self.calculate_dynamic_requirements(
             &proposal_type, 
@@ -525,7 +524,7 @@ impl GovernanceManager {
     async fn calculate_total_voting_power(&self, voter: &str) -> Result<u64, GovernanceError> {
         let base_power = self.get_voting_power(voter).await?;
         let delegated_power = self.calculate_delegated_power(voter).await?;
-        
+
         Ok(base_power + delegated_power)
     }
 
@@ -553,14 +552,14 @@ impl GovernanceManager {
     ) -> Result<(), GovernanceError> {
         // Process votes from delegators
         let delegations = self.delegations.lock().await;
-        
+
         for delegation in delegations.values() {
             if delegation.delegate == voter && delegation.is_active {
                 // Check if delegator hasn't voted directly
                 if !proposal.votes.contains_key(&delegation.delegator) {
                     let delegator_power = self.get_voting_power(&delegation.delegator).await?;
                     let delegated_vote_power = (delegator_power * delegation.percentage as u64) / 100;
-                    
+
                     let delegated_vote = Vote {
                         voter: delegation.delegator.clone(),
                         proposal_id: proposal.id.clone(),
@@ -700,7 +699,7 @@ impl GovernanceManager {
         }
 
         let (yes_votes, _no_votes, total_votes) = self.calculate_votes(proposal);
-        
+
         if total_votes < proposal.required_quorum {
             proposal.status = ProposalStatus::Failed;
             return Ok(());
@@ -752,7 +751,7 @@ impl GovernanceManager {
         hasher.update(upgrade_data);
         hasher.update(chrono::Utc::now().timestamp().to_string().as_bytes());
         let result = hasher.finalize();
-        
+
         Ok(format!("0x{}", hex::encode(result)))
     }
 
@@ -785,7 +784,7 @@ impl GovernanceManager {
         hasher.update(tx_data.as_bytes());
         hasher.update(chrono::Utc::now().timestamp().to_string().as_bytes());
         let result = hasher.finalize();
-        
+
         Ok(format!("0x{}", hex::encode(result)))
     }
 
@@ -813,7 +812,7 @@ impl GovernanceManager {
         hasher.update(tx_data.as_bytes());
         hasher.update(chrono::Utc::now().timestamp().to_string().as_bytes());
         let result = hasher.finalize();
-        
+
         Ok(format!("0x{}", hex::encode(result)))
     }
 
@@ -824,22 +823,22 @@ impl GovernanceManager {
         purpose: &str,
     ) -> Result<String, GovernanceError> {
         let mut treasury = self.treasury_balance.lock().await;
-        
+
         if treasury.available_balance < amount {
             return Err(GovernanceError::InsufficientBalance);
         }
 
         treasury.available_balance -= amount;
-        
+
         // Create spending transaction
         let tx_data = format!("treasury_spend:{}:{}:{}", recipient, amount, purpose);
         let mut hasher = Keccak256::new();
         hasher.update(tx_data.as_bytes());
         hasher.update(chrono::Utc::now().timestamp().to_string().as_bytes());
         let result = hasher.finalize();
-        
+
         tracing::info!("Treasury spend: {} to {} for {}", amount, recipient, purpose);
-        
+
         Ok(format!("0x{}", hex::encode(result)))
     }
 
@@ -889,10 +888,10 @@ impl GovernanceManager {
         let key = format!("governance:proposal:{}", proposal.id);
         let value = serde_json::to_vec(proposal)
             .map_err(|_| GovernanceError::SerializationError)?;
-        
-        self.database.put(key.as_bytes(), &value).await
+
+        self.database.put(Updating GovernanceError enum with additional error variants.key.as_bytes(), &value).await
             .map_err(|_| GovernanceError::DatabaseError)?;
-        
+
         Ok(())
     }
 
@@ -900,10 +899,10 @@ impl GovernanceManager {
         let key = format!("governance:vote:{}:{}", vote.proposal_id, vote.voter);
         let value = serde_json::to_vec(vote)
             .map_err(|_| GovernanceError::SerializationError)?;
-        
+
         self.database.put(key.as_bytes(), &value).await
             .map_err(|_| GovernanceError::DatabaseError)?;
-        
+
         Ok(())
     }
 
@@ -912,10 +911,10 @@ impl GovernanceManager {
         let value = self.database.get(key.as_bytes()).await
             .map_err(|_| GovernanceError::DatabaseError)?
             .ok_or(GovernanceError::ProposalNotFound)?;
-        
+
         let proposal: Proposal = serde_json::from_slice(&value)
             .map_err(|_| GovernanceError::SerializationError)?;
-        
+
         Ok(proposal)
     }
 }
@@ -960,6 +959,12 @@ pub enum GovernanceError {
     DatabaseError,
     #[error("Serialization error")]
     SerializationError,
+    #[error("Already voted")]
+    AlreadyVoted,
+    #[error("Self delegation")]
+    SelfDelegation,
+    #[error("Delegation not found")]
+    DelegationNotFound,
 }
 
 #[cfg(test)]
@@ -971,7 +976,7 @@ mod tests {
     async fn test_proposal_creation() {
         let chain_state = Arc::new(ChainState::new());
         let database = Arc::new(Database::new("test.db").await.unwrap());
-        
+
         let governance = GovernanceManager::new(
             chain_state,
             database,

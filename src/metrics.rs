@@ -1,4 +1,3 @@
-
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
@@ -224,7 +223,7 @@ impl MetricsManager {
 
         // Retention period kontrolü
         while let Some(old_metric) = metric_queue.front() {
-            if Utc::now() - old_metric.timestamp > config.retention_period {
+            if Utc::now() - old_metric.timestamp > chrono::Duration::from_std(config.retention_period).unwrap_or_default() {
                 metric_queue.pop_front();
             } else {
                 break;
@@ -410,7 +409,7 @@ impl MetricsManager {
     async fn check_alerts(&self, metric_name: &str, value: f64) -> Result<(), MetricsError> {
         let mut alerts = self.alerts.lock().await;
         let alert_names: Vec<String> = alerts.keys().cloned().collect();
-        
+
         for alert_name in alert_names {
             if let Some(alert) = alerts.get(&alert_name) {
                 let alert_clone = alert.clone();
@@ -443,26 +442,26 @@ impl MetricsManager {
         for handler in handlers.iter() {
             handler.handle_alert(alert, value).await?;
         }
-        
+
         tracing::warn!(
             alert_name = alert.name,
             alert_severity = ?alert.severity,
             metric_value = value,
             "Alert triggered"
         );
-        
+
         Ok(())
     }
 
     pub async fn start_monitoring(&self) -> Result<(), MetricsError> {
         let metrics_manager = Arc::new(self.clone());
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 // System metrics toplama
                 if let Ok(cpu_usage) = Self::get_cpu_usage().await {
                     let _ = metrics_manager.record_metric(
@@ -471,7 +470,7 @@ impl MetricsManager {
                         HashMap::new(),
                     ).await;
                 }
-                
+
                 if let Ok(memory_usage) = Self::get_memory_usage().await {
                     let _ = metrics_manager.record_metric(
                         "system_memory_usage",
@@ -481,7 +480,7 @@ impl MetricsManager {
                 }
             }
         });
-        
+
         Ok(())
     }
 

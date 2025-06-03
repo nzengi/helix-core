@@ -370,11 +370,11 @@ pub fn validate_self_lock(cpu_temp: f64) -> bool {
 // Güvenlik audit fonksiyonları
 pub async fn audit_transaction_security(transaction: &Transaction) -> Result<bool, String> {
     // Transaction güvenlik denetimi
-    if transaction.amount <= 0.0 {
+    if transaction.amount == 0 {
         return Err("Invalid transaction amount".to_string());
     }
 
-    if transaction.gas_price <= 0.0 {
+    if transaction.gas_price == 0 {
         return Err("Invalid gas price".to_string());
     }
 
