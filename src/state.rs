@@ -1,4 +1,4 @@
-
+rust
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
@@ -181,7 +181,7 @@ impl Block {
         let merkle_root = Self::calculate_merkle_root(&transactions);
         let gas_used = transactions.iter().map(|tx| tx.gas_used.unwrap_or(0)).sum();
         let gas_limit = transactions.iter().map(|tx| tx.gas_limit).sum();
-        
+
         let mut block = Block {
             index,
             timestamp,
@@ -300,9 +300,9 @@ impl ChainState {
     pub async fn initialize_genesis(&self, genesis_accounts: Vec<(String, u64)>) -> Result<(), StateError> {
         let mut accounts = self.accounts.lock().await;
         let mut supply = self.total_supply.lock().await;
-        
+
         *supply = 0;
-        
+
         for (address, balance) in genesis_accounts {
             let mut account = Account::new(address.clone());
             account.balance = balance;
@@ -312,7 +312,7 @@ impl ChainState {
 
         // Update state root
         self.update_state_root().await?;
-        
+
         Ok(())
     }
 
@@ -513,9 +513,9 @@ impl ChainState {
         }
 
         transaction.status = TransactionStatus::Pending;
-        
+
         let mut pool = self.pending_transactions.lock().await;
-        
+
         // Check for duplicate transactions
         if pool.iter().any(|tx| tx.hash == transaction.hash) {
             return Err(StateError::InvalidTransaction("Duplicate transaction".to_string()));
@@ -617,10 +617,10 @@ impl ChainState {
     async fn update_state_root(&self) -> Result<(), StateError> {
         let accounts = self.accounts.lock().await;
         let mut hasher = Keccak256::new();
-        
+
         let mut sorted_accounts: Vec<_> = accounts.iter().collect();
         sorted_accounts.sort_by(|a, b| a.0.cmp(b.0));
-        
+
         for (address, account) in sorted_accounts {
             hasher.update(address.as_bytes());
             hasher.update(account.balance.to_be_bytes());
@@ -632,7 +632,7 @@ impl ChainState {
 
         let mut state_root = self.state_root.lock().await;
         *state_root = format!("0x{}", hex::encode(hasher.finalize()));
-        
+
         Ok(())
     }
 
@@ -647,9 +647,9 @@ impl ChainState {
 
         let mut confirmed = self.confirmed_transactions.lock().await;
         let initial_count = confirmed.len();
-        
+
         confirmed.retain(|_, tx| tx.timestamp >= cutoff_time);
-        
+
         Ok(initial_count - confirmed.len())
     }
 
@@ -662,7 +662,7 @@ impl ChainState {
         let accounts = self.accounts.lock().await;
         let blocks = self.blocks.lock().await;
         let state_root = self.state_root.lock().await;
-        
+
         let backup_data = serde_json::json!({
             "accounts": *accounts,
             "blocks": *blocks,
@@ -673,12 +673,196 @@ impl ChainState {
         serde_json::to_string(&backup_data)
             .map_err(|e| StateError::SerializationError(e.to_string()))
     }
+
+    pub async fn get_account_balance(&self, address: &str) -> Result<u64, StateError> {
+        Ok(self.get_balance(address).await)
+    }
+
+    pub async fn get_total_transaction_count(&self) -> Result<u64, StateError> {
+        Ok(*self.transaction_count.lock().await)
+    }
+
+    pub async fn get_latest_block_height(&self) -> Result<u64, StateError> {
+        Ok(*self.current_height.lock().await)
+    }
+
+    pub async fn get_blocks_by_height_range(&self, start: u64, end: u64) -> Result<Vec<Block>, StateError> {
+        let blocks = self.blocks.lock().await;
+        let mut result = Vec::new();
+
+        for height in start..=end {
+            if let Some(block) = blocks.get(height as usize) {
+                result.push(block.clone());
+            }
+        }
+
+        Ok(result)
+    }
+
+    pub async fn get_transactions_paginated(&self, page: usize, limit: usize) -> Result<Vec<Transaction>, StateError> {
+        let confirmed = self.confirmed_transactions.lock().await;
+        let pending = self.pending_transactions.lock().await;
+
+        let mut all_transactions: Vec<Transaction> = confirmed.values().cloned().collect();
+        all_transactions.extend(pending.iter().cloned());
+
+        // Sort by timestamp descending
+        all_transactions.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+        // Apply pagination
+        let start = page * limit;
+        let end = std::cmp::min(start + limit, all_transactions.len());
+
+        if start >= all_transactions.len() {
+            return Ok(Vec::new());
+        }
+
+        Ok(all_transactions[start..end].to_vec())
+    }
+
+    pub async fn get_blocks_paginated(&self, page: usize, limit: usize) -> Result<Vec<Block>, StateError> {
+        let blocks = self.blocks.lock().await;
+
+        // Calculate pagination
+        let total_blocks = blocks.len();
+        let start = page * limit;
+
+        if start >= total_blocks {
+            return Ok(Vec::new());
+        }
+
+        let end = std::cmp::min(start + limit, total_blocks);
+
+        // Return blocks in reverse order (newest first)
+        let mut result: Vec<Block> = blocks[start..end].to_vec();
+        result.reverse();
+
+        Ok(result)
+    }
+
+    pub async fn get_validator_set(&self) -> Vec<String> {
+        let validators = self.validator_set.lock().await;
+        validators.clone()
+    }
+
+    pub async fn add_validator(&self, validator_address: String) -> Result<(), StateError> {
+        let mut validators = self.validator_set.lock().await;
+        if !validators.contains(&validator_address) {
+            validators.push(validator_address);
+        }
+        Ok(())
+    }
+
+    pub async fn remove_validator(&self, validator_address: &str) -> Result<(), StateError> {
+        let mut validators = self.validator_set.lock().await;
+        validators.retain(|v| v != validator_address);
+        Ok(())
+    }
+
+    pub async fn get_mempool_size(&self) -> usize {
+        let pending = self.pending_transactions.lock().await;
+        pending.len()
+    }
+
+    pub async fn clear_mempool(&self) -> Result<(), StateError> {
+        let mut pending = self.pending_transactions.lock().await;
+        pending.clear();
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub async fn get_chain_stats(&self) -> Result<ChainStats, StateError> {
+        let height = *self.current_height.lock().await;
+        let blocks = self.blocks.lock().await;
+        let accounts = self.accounts.lock().await;
+        let tx_count = *self.transaction_count.lock().await;
+        let validators = self.validator_set.lock().await;
+
+        // Calculate average block time
+        let avg_block_time = if blocks.len() > 1 {
+            let first_time = blocks.first().unwrap().timestamp;
+            let last_time = blocks.last().unwrap().timestamp;
+            let total_time = last_time - first_time;
+            total_time as f64 / (blocks.len() - 1) as f64
+        } else {
+            0.0
+        };
+
+        Ok(ChainStats {
+            total_blocks: height,
+            total_transactions: tx_count,
+            total_accounts: accounts.len() as u64,
+            average_block_time: avg_block_time,
+            network_hash_rate: 1000.0, // Placeholder
+            active_validators: validators.len() as u64,
+        })
+    }
+
+    pub async fn estimate_gas(&self, transaction: &Transaction) -> Result<u64, StateError> {
+        // Base gas cost
+        let mut gas_cost = 21000u64; // Base transaction cost
+
+        // Add cost for data
+        gas_cost += transaction.data.len() as u64 * 16; // 16 gas per byte
+
+        // Add cost for value transfer
+        if transaction.amount > 0 {
+            gas_cost += 9000; // Additional cost for value transfer
+        }
+
+        // Contract interaction cost
+        if transaction.is_contract_call() {
+            gas_cost += 25000; // Additional cost for contract calls
+        }
+
+        Ok(gas_cost)
+    }
+
+    #[allow(dead_code)]
+    pub async fn simulate_transaction(&self, transaction: &Transaction) -> Result<TransactionResult, StateError> {
+        // Validate the transaction first
+        if !self.validate_transaction(transaction).await? {
+            return Ok(TransactionResult {
+                success: false,
+                gas_used: 0,
+                error: Some("Transaction validation failed".to_string()),
+                return_data: Vec::new(),
+            });
+        }
+
+        let gas_estimate = self.estimate_gas(transaction).await?;
+
+        Ok(TransactionResult {
+            success: true,
+            gas_used: gas_estimate,
+            error: None,
+            return_data: Vec::new(),
+        })
+    }
 }
 
 impl Default for ChainState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChainStats {
+    pub total_blocks: u64,
+    pub total_transactions: u64,
+    pub total_accounts: u64,
+    pub average_block_time: f64,
+    pub network_hash_rate: f64,
+    pub active_validators: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransactionResult {
+    pub success: bool,
+    pub gas_used: u64,
+    pub error: Option<String>,
+    pub return_data: Vec<u8>,
 }
 
 #[cfg(test)]
@@ -699,7 +883,7 @@ mod tests {
     async fn test_balance_operations() {
         let state = ChainState::new();
         state.create_account("0x123".to_string()).await.unwrap();
-        
+
         let result = state.set_balance("0x123", 1000).await;
         assert!(result.is_ok());
 
@@ -727,15 +911,15 @@ mod tests {
     #[tokio::test]
     async fn test_state_operations() {
         let state = ChainState::new();
-        
+
         // Initialize with genesis accounts
         let genesis_accounts = vec![
             ("0x123".to_string(), 10000),
             ("0x456".to_string(), 5000),
         ];
-        
+
         state.initialize_genesis(genesis_accounts).await.unwrap();
-        
+
         let status = state.get_status().await.unwrap();
         assert_eq!(status.active_accounts, 2);
         assert_eq!(status.total_supply, 15000);
