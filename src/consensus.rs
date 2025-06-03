@@ -517,7 +517,7 @@ impl RotaryBFT {
 
     pub async fn get_pending_transactions(&self) -> Result<Vec<Transaction>> {
         let state_txs = self.chain_state.get_pending_transactions().await?;
-        
+
         let consensus_txs = state_txs.into_iter().map(|tx| Transaction {
             hash: tx.hash,
             from: tx.from,
@@ -531,7 +531,7 @@ impl RotaryBFT {
             timestamp: chrono::DateTime::from_timestamp(tx.timestamp as i64, 0)
                 .unwrap_or_else(|| Utc::now()),
         }).collect();
-        
+
         Ok(consensus_txs)
     }
 
@@ -651,9 +651,9 @@ impl RotaryBFT {
             size: 1024, // Default block size
             nonce: 0,   // Default nonce
         };
-        
+
         // Add block to chain
-        self.chain_state.add_block(&state_block).await
+        self.chain_state.add_block(&state_block).await.map_err(|e| anyhow::anyhow!("Failed to add block: {:?}", e))
     }
 }
 
