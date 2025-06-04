@@ -26,7 +26,7 @@ pub struct ConsensusConfig {
     pub min_validators: usize,
     pub block_time_ms: u64,
     pub max_block_size: u32,
-    pub min_stake: u128,
+    pub min_stake: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

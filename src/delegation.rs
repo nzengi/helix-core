@@ -14,7 +14,7 @@ pub struct Validator {
     pub name: String,
     pub description: String,
     pub commission_rate: u32, // 0-10000 (0-100%)
-    pub min_stake: u128,
+    pub min_stake: u64,
     pub max_stake: u128,
     pub total_stake: u128,
     pub delegators: HashSet<String>,
@@ -90,7 +90,7 @@ impl DelegationManager {
         name: String,
         description: String,
         commission_rate: u32,
-        min_stake: u128,
+        min_stake: u64,
         max_stake: u128,
     ) -> Result<Validator, DelegationError> {
         if commission_rate > 10000 {
@@ -132,7 +132,7 @@ impl DelegationManager {
             return Err(DelegationError::ValidatorInactive);
         }
 
-        if amount < validator.min_stake {
+        if amount < validator.min_stake as u128 {
             return Err(DelegationError::InsufficientStake);
         }
 

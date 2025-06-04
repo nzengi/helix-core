@@ -1,5 +1,5 @@
-
 [network]
+chain_id = "helix_testnet"
 listen_addr = "0.0.0.0"
 listen_port = 8080
 max_peers = 50
@@ -9,7 +9,7 @@ bootstrap_nodes = []
 min_validators = 3
 block_time_ms = 2000
 max_block_size = 1048576  # 1MB
-min_stake = 1000
+min_stake = 1000000000000
 
 [database]
 url = "postgres://localhost/helix"
